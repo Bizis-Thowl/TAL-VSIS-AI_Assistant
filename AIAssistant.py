@@ -10,6 +10,7 @@ from features_retrieval.client_features import aggregate_client_features
 from features_retrieval.ma_features import aggregate_ma_features
 
 from optimize.optimize import Optimizer
+from utils.add_comment import add_customer_comments, add_employee_comment, reset_comments
 
 today = "2024-08-22"
 
@@ -29,8 +30,10 @@ class AIAssistant:
         # Dataset
         self.clients_df = pd.DataFrame
         self.mas_df = pd.DataFrame
+        self.client_record_assignments = {}
     
     def update_dataset(self):
+        reset_comments()
         vertretungen = get_vertretungen(today, self.user, self.pw)
         
         if len(vertretungen) != len(self.vertretungen):
@@ -50,7 +53,7 @@ class AIAssistant:
         open_client_ids = get_open_client_ids(open_client_records)
         free_ma_ids = get_free_ma_ids(free_ma_records, absent_client_records, self.mas)
         ma_assignments = get_ma_assignments(rescheduled_ma_records)
-        client_record_assignments = get_client_record_assignments(open_client_records)
+        self.client_record_assignments = get_client_record_assignments(open_client_records)
         
         print("ids gesammelt")
         
