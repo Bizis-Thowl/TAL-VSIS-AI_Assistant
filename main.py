@@ -11,6 +11,7 @@ from fetching.missy_fetching import get_distances, get_clients, get_mas, get_pri
 load_dotenv(override=True)
 
 logging.basicConfig(
+    filename="ai-assistant.log",
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
@@ -28,8 +29,6 @@ clients = get_clients(user, pw, update_cache=update_cache)
 distances = get_distances(user, pw, update_cache=update_cache)
 mas = get_mas(user, pw, update_cache=update_cache)
 prio_assignments = get_prio_assignments(user, pw, update_cache=update_cache)
-
-# print(clients)
 
 def main():
     
