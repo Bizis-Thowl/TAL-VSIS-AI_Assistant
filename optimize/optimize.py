@@ -16,6 +16,9 @@ class Optimizer:
         self.clients = clients
 
     def create_model(self):
+        
+        print(self.employees)
+        print(self.clients)
 
         # Create decision variables and filter based on eligibility
         for i, emp in self.employees.iterrows():
@@ -51,8 +54,12 @@ class Optimizer:
             print(self.employees.iloc[i]["availability"])
             availability_end = self.employees.iloc[i]["availability"][1]
             print(self.clients.iloc[j]["timeWindow"])
-            time_window_end = self.clients.iloc[j]["timeWindow"][1]
-            diff = self.assignments[(i, j)] * int(availability_end * 100 - time_window_end * 100)
+            kl_timewindow = self.clients.iloc[j]["timeWindow"]
+            if kl_timewindow is None:
+                diff = self.assignments[(i, j)] * 0
+            else:
+                time_window_end = self.clients.iloc[j]["timeWindow"][1]
+                diff = self.assignments[(i, j)] * int(availability_end * 100 - time_window_end * 100)
             time_window_diffs.append(diff)
 
 
@@ -105,6 +112,9 @@ class Optimizer:
                 assigned_pairs.append((self.employees.iloc[i]["id"], self.clients.iloc[j]["id"]))
                 print(f"Employee {self.employees.iloc[i]['id']} assigned to Client {self.clients.iloc[j]['id']}")
 
+        print(self.unassigned_clients)
+        print(self.assignments)
+        
         # Output the unassigned clients
         unassigned_clients_list = [self.clients.iloc[j]["id"] for j in range(len(self.clients))
                                 if self.unassigned_clients[j].value() == 1]
@@ -121,7 +131,11 @@ class Optimizer:
         for (i, j), var in self.assignments.items():
             if var.value() == 1:
                 availability_end = self.employees.iloc[i]["availability"][1]
-                time_window_end = self.clients.iloc[j]["timeWindow"][1]
+                kl_time_window = self.clients.iloc[j]["timeWindow"]
+                if kl_time_window is None:
+                    time_window_end = availability_end
+                else:
+                    time_window_end = kl_time_window[1]
                 diff = var.value() * availability_end - time_window_end
                 total_time_window_diff.append(diff)
 
@@ -129,3 +143,5 @@ class Optimizer:
         # print(f"window diff times: {total_time_window_diff}")
         print("\nTotal Travel Time:", sum(total_travel_time))
         # print("Total Time Window Difference:", sum(total_time_window_diff))
+        
+        return assigned_pairs

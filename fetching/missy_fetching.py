@@ -5,6 +5,8 @@ from datetime import datetime
 from endpoints import endpoints_missy
 from config import base_url_missy
 from utils.read_file import read_file
+from base64 import b64encode
+
 
 def get_vertretungen(date, user, pw, use_cache = True, update_cache = False):
     
@@ -12,7 +14,7 @@ def get_vertretungen(date, user, pw, use_cache = True, update_cache = False):
     
     vertretungen = abstract_fetch_w_date(user, pw, endpoint_key, date, use_cache, update_cache)
     
-    # vertretungen = vertretungen["VMBegleitungList"]
+    vertretungen = vertretungen["VMBegleitungList"]
     
     return vertretungen
 
@@ -57,13 +59,28 @@ def get_distances(user, pw, use_cache = True, update_cache = False):
     return distances
 
 def fetch_object(user, pw, endpoint_key):
-    response = requests.get(f"{base_url_missy}{endpoints_missy[endpoint_key]}", auth=HTTPBasicAuth(user, pw))
+    
+    token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
+    url = f"{base_url_missy}{endpoints_missy[endpoint_key]}"
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Basic {token}'
+    }
+    response = requests.get(url, headers=headers)
     response_object = response.json()
     
     return response_object
 
 def fetch_object_w_date(user, pw, endpoint_key, date):
-    response = requests.get(f"{base_url_missy}{endpoints_missy[endpoint_key]}?datum={date}", auth=HTTPBasicAuth(user, pw))
+    
+    
+    token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Basic {token}'
+    }
+    response = requests.get(f"{base_url_missy}{endpoints_missy[endpoint_key]}?datum={date}", headers=headers)
     response_object = response.json()
     
     return response_object

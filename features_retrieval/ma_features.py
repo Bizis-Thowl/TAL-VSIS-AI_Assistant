@@ -14,7 +14,7 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict)
         "availability": [],
     }
     for ma in ma_objects:
-        ma_dict["id"].append(ma["id"][0:6])
+        ma_dict["id"].append(ma["id"])
         ma_dict["qualifications"].append(get_ma_qualifications(ma))
         # TODO Implement
         ma_dict["sex"].append(None)

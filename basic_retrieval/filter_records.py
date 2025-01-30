@@ -20,18 +20,19 @@ def filter_records(records: List) -> Tuple[List]:
 
 def assign_mabw_record(record: Dict, entities: Dict) -> Dict:
     
-    if 'klientzubegleiten' in record and 'maabwesend' in record:
+    if 'klientzubegleiten' in record and 'maabwesend' in record and 'mavertretend' not in record:
         entities["open_clients"].append(record)
-        if 'mavertretend' in record:
-            entities["rescheduled_mas"].append(record)
+    elif 'mavertretend' in record:
+        entities["rescheduled_mas"].append(record)
     
     return entities
 
 def assign_kabw_record(record: Dict, entities: Dict) -> Dict:
     
-    if 'klientabwesend' in record:
-        entities["absent_clients"].append(record)
-    elif 'mafrei' in record:
-        entities["free_mas"].append(record)
+    if 'mavertretend' not in record:
+        if 'klientabwesend' in record:
+            entities["absent_clients"].append(record)
+        if 'mafrei' in record:
+            entities["free_mas"].append(record)
         
     return entities

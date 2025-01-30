@@ -18,4 +18,10 @@ def add_customer_comments(customer_id, comment):
 def reset_comments():
     employee_comments.clear()
     customer_comments.clear()
+    
+def get_customer_comments(customer_id):
+    return customer_comments[customer_id]
+
+def get_employee_comments(employee_id):
+    return employee_comments[employee_id]
 
