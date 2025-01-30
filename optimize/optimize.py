@@ -2,6 +2,10 @@ import cpmpy as cp
 import pandas as pd
 import json
 from optimize.utils.has_required_qualifications import has_required_qualifications
+import logging
+from utils.append_to_json_file import append_to_json_file
+
+logger = logging.getLogger(__name__)
 
 class Optimizer:
     
@@ -16,9 +20,6 @@ class Optimizer:
         self.clients = clients
 
     def create_model(self):
-        
-        print(self.employees)
-        print(self.clients)
 
         # Create decision variables and filter based on eligibility
         for i, emp in self.employees.iterrows():
@@ -51,9 +52,7 @@ class Optimizer:
         time_window_diffs = []
 
         for (i, j) in self.assignments:
-            print(self.employees.iloc[i]["availability"])
             availability_end = self.employees.iloc[i]["availability"][1]
-            print(self.clients.iloc[j]["timeWindow"])
             kl_timewindow = self.clients.iloc[j]["timeWindow"]
             if kl_timewindow is None:
                 diff = self.assignments[(i, j)] * 0
@@ -95,25 +94,29 @@ class Optimizer:
 
     def solve_model(self):
         if self.model.solve(solver="ortools"):
-            print("Optimal assignment found!")
+            logger.info("Optimal solution found!")
+            print("Optimal solution found!")
             # Extract solution
             solution_assignments = {(i, j): self.assignments[(i, j)].value() for (i, j) in self.assignments}
             solution_unassigned_clients = [var.value() for var in self.unassigned_clients]
             
             return solution_assignments, solution_unassigned_clients
         else:
+            logger.info("No feasible solution found.")
             print("No feasible solution found.")
             return None
         
     def display_results(self):
+        store_dict = {
+            "assigned_pairs": None,
+            "unassigned_clients": None,
+            "total_travel_time": None
+        }
         assigned_pairs = []
         for (i, j), var in self.assignments.items():
             if var.value() == 1:
-                assigned_pairs.append((self.employees.iloc[i]["id"], self.clients.iloc[j]["id"]))
+                assigned_pairs.append({"ma": self.employees.iloc[i]["id"], "klient": self.clients.iloc[j]["id"]})
                 print(f"Employee {self.employees.iloc[i]['id']} assigned to Client {self.clients.iloc[j]['id']}")
-
-        print(self.unassigned_clients)
-        print(self.assignments)
         
         # Output the unassigned clients
         unassigned_clients_list = [self.clients.iloc[j]["id"] for j in range(len(self.clients))
@@ -121,6 +124,8 @@ class Optimizer:
 
         print("\nUnassigned Clients:")
         print(unassigned_clients_list)
+        store_dict["assigned_pairs"] = assigned_pairs
+        store_dict["unassigned_clients"] = unassigned_clients_list
 
         # Display total travel time and time window difference for the optimal solution
         # (Scaled back to original units by dividing by 1000)
@@ -143,5 +148,9 @@ class Optimizer:
         # print(f"window diff times: {total_time_window_diff}")
         print("\nTotal Travel Time:", sum(total_travel_time))
         # print("Total Time Window Difference:", sum(total_time_window_diff))
+        
+        store_dict["total_travel_time"] = sum(total_travel_time)
+        
+        append_to_json_file(store_dict, "recommendations.json")
         
         return assigned_pairs

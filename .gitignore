@@ -173,6 +173,9 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-config.py
+data/*
+!data/
 
-data/
+
+store/*
+!store/

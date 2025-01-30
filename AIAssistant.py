@@ -13,6 +13,7 @@ from features_retrieval.ma_features import aggregate_ma_features
 from optimize.optimize import Optimizer
 from utils.add_comment import reset_comments, get_customer_comments, get_employee_comments
 from utils.flatten_list import flatten
+from utils.append_to_json_file import append_to_json_file
 
 
 today = "2025-01-13"
@@ -57,6 +58,7 @@ class AIAssistant:
         absent_client_records = filtered_records["absent_clients"]
         free_ma_records = filtered_records["free_mas"]
         
+        
         print(open_client_records)
         print(rescheduled_ma_records)
         print(absent_client_records)
@@ -69,9 +71,9 @@ class AIAssistant:
         ma_assignments = get_ma_assignments(rescheduled_ma_records)
         self.client_record_assignments = get_client_record_assignments(open_client_records)
         
-        print(open_client_ids)
-        print(free_ma_ids)
-        print(self.client_record_assignments)
+        append_to_json_file(open_client_ids, "open_clients.json")
+        append_to_json_file(free_ma_ids, "free_mas.json")
+        append_to_json_file(ma_assignments, "ma_assignments.json")
         
         print("ids gesammelt")
         
@@ -114,18 +116,30 @@ class AIAssistant:
     
     def send_update(self):
         
+        user_recommendations = []
+        
         for pair in self.assigned_pairs:
-            client_id = pair[1]
-            ma_id = pair[0]
+            client_id = pair["klient"]
+            ma_id = pair["ma"]
             incident_id = self.client_record_assignments[client_id]
-            expl_short = "Kurzer Kommentar"
+            expl_short = ""
             expl = []
             expl.append(get_employee_comments(ma_id))
             expl.append(get_customer_comments(client_id))
             expl = flatten(expl)
+            if expl != []:
+                expl_short = "Siehe Kommentar"
             expl = ', '.join(expl)
             out = update_recommendation(self.user, self.pw, incident_id, ma_id, expl_short, expl)
+            user_recommendations.append({
+                "incident_id": incident_id,
+                "ma_id": ma_id,
+                "client_id": client_id,
+                "short_explanation": expl_short,
+                "explanation": expl
+            })
             print(out)
+        append_to_json_file(user_recommendations, "user_recommendations.json")
     
     # Some helper functions are here...
     
