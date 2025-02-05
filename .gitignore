@@ -174,8 +174,8 @@ cython_debug/
 .pypirc
 
 data/*
-!data/
+!data/placeholder.jsonl
 
 
 store/*
-!store/
+!store/placeholder.jsonl
