@@ -45,8 +45,8 @@ class AIAssistant:
     
     def update_dataset(self) -> bool:
         
-        today = datetime.today().strftime('%Y-%m-%d')
-        # today = '2025-01-13'
+        # today = datetime.today().strftime('%Y-%m-%d')
+        today = '2025-02-06'
         
         reset_comments()
         vertretungen = get_vertretungen(today, self.user, self.pw, update_cache=True)
