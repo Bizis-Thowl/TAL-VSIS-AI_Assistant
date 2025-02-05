@@ -5,8 +5,8 @@ from optimize.utils.has_required_qualifications import has_required_qualificatio
 from optimize.SoftConstraintHandler import SoftConstrainedHandler
 import logging
 from utils.append_to_json_file import append_to_json_file
-from utils.add_comment import add_ai_comments, get_ai_comments
-from datetime import datetime
+from utils.add_comment import add_ai_comment, get_ai_comments
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -124,21 +124,16 @@ class Optimizer:
         print(total_priority)
         store_dict["avg_priority"] = sum(total_priority) / len(assigned_pairs)
         
-        recommendation_id = self._calculate_unique_recommendation_id(assigned_pairs)
-        add_ai_comments(recommendation_id, f"Ø Luftlinie: {store_dict['avg_travel_time'] / 1000} km")
-        add_ai_comments(recommendation_id, f"Ø Prio: {store_dict['avg_priority']}")
+        recommendation_id = self._calculate_unique_recommendation_id()
+        add_ai_comment(recommendation_id, f"Ø Luftlinie: {store_dict['avg_travel_time'] / 1000} km")
+        add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']}")
         
-        print(get_ai_comments(recommendation_id))
+        print(f"uuid: {recommendation_id}")
         
         append_to_json_file(store_dict, "recommendations.json")
         
         return assigned_pairs, recommendation_id
     
-    def _calculate_unique_recommendation_id(self, assignments):
+    def _calculate_unique_recommendation_id(self):
         
-        now = datetime.now()
-        time = now.strftime("%H:%M:%S")
-        
-        recommendation_id = hash(str(assignments) + time)
-        
-        return recommendation_id
+        return uuid.uuid4()

@@ -2,7 +2,7 @@ from typing import List
 from datetime import datetime
 import pandas as pd
 from utils.get_weekday import get_weekday
-from utils.add_comment import add_customer_comments
+from utils.add_comment import add_customer_comment
 
 def aggregate_client_features(open_client_objects: List, date: str, prio_assignments: List):
     client_dict = {
@@ -15,8 +15,9 @@ def aggregate_client_features(open_client_objects: List, date: str, prio_assignm
     }
     weekday = get_weekday(date)
     for client in open_client_objects:
+        print(client)
         if get_timewindow(client, weekday) is None:
-            add_customer_comments(client["id"], "Für diesen Klienten fehlt der Stundenplan")
+            add_customer_comment(client["id"], "Für diesen Klienten fehlt der Stundenplan")
         client_dict["id"].append(client["id"])
         client_dict["neededQualifications"].append(get_qualifications(client))
         client_dict["requiredSex"].append(client.get("begleitergeschlecht"))
