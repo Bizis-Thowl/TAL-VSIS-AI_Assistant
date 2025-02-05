@@ -7,6 +7,8 @@ import time
 
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
 
+from utils.append_to_json_file import append_to_json_file
+
 # load .env file to environment
 load_dotenv(override=True)
 
@@ -18,9 +20,6 @@ logging.basicConfig(
 
 user = os.getenv("USER")
 pw = os.getenv("PASSWORD")
-
-print(user)
-print(pw)
 
 update_cache = True
 
@@ -44,11 +43,20 @@ def main():
         
         assistant.update_solver_model()
         assistant.solve_model()
-        assistant.display_results()
-
-        assistant.send_update()
+        assigned_pairs, recommendation_id = assistant.process_results()
         
+        recommendations = []
+        for assigned_pair in assigned_pairs:
+            learner_data = assistant.prepare_learner_data(assigned_pair)
+            learner_info = assistant.retrieve_learner_scores(learner_data)
+
+            recommendation = assistant.send_update(assigned_pair, recommendation_id, learner_info)
+            
+            recommendations.append(recommendation)
+        
+        append_to_json_file(recommendations, "user_recommendations.json")
         time.sleep(10)
     
 if __name__ == '__main__':
     main()
+    # pass

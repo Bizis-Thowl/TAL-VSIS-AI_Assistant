@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import Dict, List, Tuple
 
 from fetching.missy_fetching import get_vertretungen
 from fetching.ai_communication import update_recommendation
@@ -11,12 +12,11 @@ from features_retrieval.client_features import aggregate_client_features
 from features_retrieval.ma_features import aggregate_ma_features
 
 from optimize.optimize import Optimizer
-from utils.add_comment import reset_comments, get_customer_comments, get_employee_comments
+from utils.add_comment import reset_comments, get_customer_comments, get_employee_comments, get_ai_comments
 from utils.flatten_list import flatten
 from utils.append_to_json_file import append_to_json_file
 
-
-today = "2025-01-13"
+from learning.LearningHandler import LearningHandler
 
 class AIAssistant:
     
@@ -39,10 +39,14 @@ class AIAssistant:
         # Solver
         self.optimizer = None
         
-        # Results
-        self.assigned_pairs = []
+        # Learner
+        self.learner = LearningHandler()
     
     def update_dataset(self) -> bool:
+        
+        # today = datetime.today().strftime('%Y-%m-%d')
+        today = '2025-01-13'
+        
         reset_comments()
         vertretungen = get_vertretungen(today, self.user, self.pw, update_cache=True)
         
@@ -57,12 +61,6 @@ class AIAssistant:
         rescheduled_ma_records = filtered_records["rescheduled_mas"]
         absent_client_records = filtered_records["absent_clients"]
         free_ma_records = filtered_records["free_mas"]
-        
-        
-        print(open_client_records)
-        print(rescheduled_ma_records)
-        print(absent_client_records)
-        print(free_ma_records)
         
         print("Records extrahiert")
         
@@ -108,40 +106,62 @@ class AIAssistant:
         if not is_not_initialized:
             self.optimizer.solve_model()
         
-    def display_results(self):
+    def process_results(self):
         is_not_initialized = self._handle_data_not_initialized() and self._handle_optimizer_not_initialized()
         if not is_not_initialized:
-            self.assigned_pairs = self.optimizer.display_results()
+            assigned_pairs, recommendation_id = self.optimizer.process_results()
 
+        return assigned_pairs, recommendation_id
+        
+    def prepare_learner_data(self, assignments: Dict) -> List[List]:
+        
+        return self.learner.prepare_data(assignments, self.mas_df, self.clients_df)
     
-    def send_update(self):
+    def retrieve_learner_scores(self, datapoint: List[List]) -> Tuple[int, float]:
         
-        user_recommendations = []
+        return self.learner.predict_and_score(datapoint)
+    
+    def send_update(self, assigned_pair: Dict, recommendation_id: str, learner_info: Tuple[int, float]):
         
-        for pair in self.assigned_pairs:
-            client_id = pair["klient"]
-            ma_id = pair["ma"]
-            incident_id = self.client_record_assignments[client_id]
-            expl_short = ""
-            expl = []
-            expl.append(get_employee_comments(ma_id))
-            expl.append(get_customer_comments(client_id))
-            expl = flatten(expl)
-            if expl != []:
-                expl_short = "Siehe Kommentar"
-            expl = ', '.join(expl)
-            out = update_recommendation(self.user, self.pw, incident_id, ma_id, expl_short, expl)
-            user_recommendations.append({
-                "incident_id": incident_id,
-                "ma_id": ma_id,
-                "client_id": client_id,
-                "short_explanation": expl_short,
-                "explanation": expl
-            })
-            print(out)
-        append_to_json_file(user_recommendations, "user_recommendations.json")
+        
+        client_id = assigned_pair["klient"]
+        ma_id = assigned_pair["ma"]
+        incident_id = self.client_record_assignments[client_id]
+        expl_short = self._create_short_explanation(recommendation_id, learner_info)
+        expl = self._create_explanation(ma_id, client_id, recommendation_id)
+        out = update_recommendation(self.user, self.pw, incident_id, ma_id, expl_short, expl)
+        user_recommendation = {
+            "incident_id": incident_id,
+            "ma_id": ma_id,
+            "client_id": client_id,
+            "short_explanation": expl_short,
+            "explanation": expl
+        }
+        print(out)
+        return user_recommendation
     
     # Some helper functions are here...
+    
+    def _create_short_explanation(self, recommendation_id: str, learner_info: Tuple[int, float]) -> str:
+        expl = []
+        learner_pred = learner_info[0]
+        learner_score = learner_info[1]
+        expl.append([f"Normal ({learner_score})" if learner_pred == 1 else f"Unnormal ({learner_score})"])
+        expl.append(get_ai_comments(recommendation_id))
+        expl = flatten(expl)
+        expl = ', '.join(expl)
+        
+        return expl
+    
+    def _create_explanation(self, ma_id, client_id, recommendation_id):
+        expl = []
+        expl.append(get_employee_comments(ma_id))
+        expl.append(get_customer_comments(client_id))
+        expl.append(get_ai_comments(recommendation_id))
+        expl = flatten(expl)
+        expl = ', '.join(expl)
+        
+        return expl
     
     def _data_not_initialized(self):
         return self.clients_df.empty or self.mas_df.empty

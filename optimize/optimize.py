@@ -2,8 +2,11 @@ import cpmpy as cp
 import pandas as pd
 import json
 from optimize.utils.has_required_qualifications import has_required_qualifications
+from optimize.SoftConstraintHandler import SoftConstrainedHandler
 import logging
 from utils.append_to_json_file import append_to_json_file
+from utils.add_comment import add_ai_comments, get_ai_comments
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -39,42 +42,8 @@ class Optimizer:
         for j in range(len(self.clients)):
             self.model += [self.unassigned_clients[j] == 1 - sum(self.assignments[(i, j)] for i in range(len(self.employees)) if (i, j) in self.assignments)]
 
-        # Objective 1: Minimize unassigned clients
-        objective_unassigned = sum(self.unassigned_clients) * 10000000
-
-        # Objective 2: Minimize the total travel time for all assigned employee-client pairs (scaled up to avoid floats)
-        travel_times = [
-            self.assignments[(i, j)] * int(json.loads(self.employees.iloc[i]["timeToSchool"])[self.clients.iloc[j]["school"]] * 10)
-            for (i, j) in self.assignments
-        ]
-
-        # Objective 3: Minimize the time window difference for assigned employee-client pairs (scaled similarly)
-        time_window_diffs = []
-
-        for (i, j) in self.assignments:
-            availability_end = self.employees.iloc[i]["availability"][1]
-            kl_timewindow = self.clients.iloc[j]["timeWindow"]
-            if kl_timewindow is None:
-                diff = self.assignments[(i, j)] * 0
-            else:
-                time_window_end = self.clients.iloc[j]["timeWindow"][1]
-                diff = self.assignments[(i, j)] * int(availability_end * 100 - time_window_end * 100)
-            time_window_diffs.append(diff)
-
-
-        # Objective 4: Minimize the priority score
-        priority = [
-            self.assignments[(i, j)] * int(self.clients.iloc[j]["priority"] * 1000)
-            for (i, j) in self.assignments
-        ]
-
-        # Combine objectives with scaled integer weights to prioritize unassigned clients
-        self.model.minimize(
-            objective_unassigned + 
-            sum(travel_times) + 
-            # sum(time_window_diffs) + 
-            sum(priority))
-
+        soft_constrained_handler = SoftConstrainedHandler(self.employees, self.clients, self.assignments, self.unassigned_clients, self.model)
+        self.model = soft_constrained_handler.set_up_objectives()
 
         # Constraints: Each employee and client can only be assigned once
         # Each employee can only be assigned to one client
@@ -89,8 +58,8 @@ class Optimizer:
         # for j in range(len(self.clients)):
         #     self.model += sum(self.unassigned_clients) == 0
 
-        for elem in time_window_diffs:
-            self.model += elem >= 0
+        # for elem in time_window_diffs:
+        #     self.model += elem >= 0
 
     def solve_model(self):
         if self.model.solve(solver="ortools"):
@@ -106,11 +75,12 @@ class Optimizer:
             print("No feasible solution found.")
             return None
         
-    def display_results(self):
+    def process_results(self):
         store_dict = {
             "assigned_pairs": None,
             "unassigned_clients": None,
-            "total_travel_time": None
+            "total_travel_time": None,
+            "total_priority": None
         }
         assigned_pairs = []
         for (i, j), var in self.assignments.items():
@@ -128,9 +98,10 @@ class Optimizer:
         store_dict["unassigned_clients"] = unassigned_clients_list
 
         # Display total travel time and time window difference for the optimal solution
-        # (Scaled back to original units by dividing by 1000)
         total_travel_time = [var.value() * json.loads(self.employees.iloc[i]["timeToSchool"])[self.clients.iloc[j]["school"]] 
                                 for (i, j), var in self.assignments.items() if var.value() == 1]
+        # total_priority = [var.value() * self.clients.iloc[j]["priority"] for (i, j), var in self.assignments.items() if var.value() == 1]
+        total_priority = [self.clients.to_dict()["priority"][j] for (i, j), var in self.assignments.items() if var.value() == 1]
         total_time_window_diff = []
 
         for (i, j), var in self.assignments.items():
@@ -149,8 +120,25 @@ class Optimizer:
         print("\nTotal Travel Time:", sum(total_travel_time))
         # print("Total Time Window Difference:", sum(total_time_window_diff))
         
-        store_dict["total_travel_time"] = sum(total_travel_time)
+        store_dict["avg_travel_time"] = sum(total_travel_time) / len(assigned_pairs)
+        print(total_priority)
+        store_dict["avg_priority"] = sum(total_priority) / len(assigned_pairs)
+        
+        recommendation_id = self._calculate_unique_recommendation_id(assigned_pairs)
+        add_ai_comments(recommendation_id, f"Ø Luftlinie: {store_dict['avg_travel_time'] / 1000} km")
+        add_ai_comments(recommendation_id, f"Ø Prio: {store_dict['avg_priority']}")
+        
+        print(get_ai_comments(recommendation_id))
         
         append_to_json_file(store_dict, "recommendations.json")
         
-        return assigned_pairs
+        return assigned_pairs, recommendation_id
+    
+    def _calculate_unique_recommendation_id(self, assignments):
+        
+        now = datetime.now()
+        time = now.strftime("%H:%M:%S")
+        
+        recommendation_id = hash(str(assignments) + time)
+        
+        return recommendation_id
