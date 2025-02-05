@@ -148,9 +148,11 @@ class AIAssistant:
         learner_pred = learner_info[0]
         learner_score = learner_info[1]
         expl.append([f"Normal ({learner_score})" if learner_pred == 1 else f"Unnormal ({learner_score})"])
-        expl.append(get_ai_comments(recommendation_id))
+        # expl.append(get_ai_comments(recommendation_id))
         expl = str(expl)
         expl = ', '.join(expl)
+        
+        print(expl)
         
         return expl
     
