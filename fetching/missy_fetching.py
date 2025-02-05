@@ -67,6 +67,7 @@ def fetch_object(user, pw, endpoint_key):
         'Authorization': f'Basic {token}'
     }
     response = requests.get(url, headers=headers)
+    response.raise_for_status()
     response_object = response.json()
     
     return response_object

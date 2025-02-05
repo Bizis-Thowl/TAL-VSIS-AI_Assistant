@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import Dict, List, Tuple
+from datetime import datetime
 
 from fetching.missy_fetching import get_vertretungen
 from fetching.ai_communication import update_recommendation
@@ -44,8 +45,8 @@ class AIAssistant:
     
     def update_dataset(self) -> bool:
         
-        # today = datetime.today().strftime('%Y-%m-%d')
-        today = '2025-01-13'
+        today = datetime.today().strftime('%Y-%m-%d')
+        # today = '2025-01-13'
         
         reset_comments()
         vertretungen = get_vertretungen(today, self.user, self.pw, update_cache=True)

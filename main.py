@@ -9,6 +9,8 @@ from fetching.missy_fetching import get_distances, get_clients, get_mas, get_pri
 
 from utils.append_to_json_file import append_to_json_file
 
+from config import update_cache
+
 # load .env file to environment
 load_dotenv(override=True)
 
@@ -21,11 +23,10 @@ logging.basicConfig(
 user = os.getenv("USER")
 pw = os.getenv("PASSWORD")
 
-update_cache = True
 
 # Retrieve mostly static data
-clients = get_clients(user, pw, update_cache=update_cache)
 distances = get_distances(user, pw, update_cache=update_cache)
+clients = get_clients(user, pw, update_cache=update_cache)
 mas = get_mas(user, pw, update_cache=update_cache)
 prio_assignments = get_prio_assignments(user, pw, update_cache=update_cache)
 
