@@ -1,20 +1,16 @@
 from typing import Tuple, List, Dict
 
-def filter_records(records: List) -> Tuple[List]:
+def filter_mabw_records(records: List) -> Tuple[List]:
     
     # Initialize filtered list
     entities = {
         "open_clients": [],
-        "rescheduled_mas": [],
-        "free_mas": [],
-        "absent_clients": [],
+        "rescheduled_mas": []
     }
     
     for record in records:
         if record["typ"] == "mabw":
             entities = assign_mabw_record(record, entities)
-        elif record["typ"] == "kabw":
-            entities = assign_kabw_record(record, entities)
                 
     return entities
 
@@ -25,14 +21,4 @@ def assign_mabw_record(record: Dict, entities: Dict) -> Dict:
     elif 'mavertretend' in record:
         entities["rescheduled_mas"].append(record)
     
-    return entities
-
-def assign_kabw_record(record: Dict, entities: Dict) -> Dict:
-    
-    if 'mavertretend' not in record:
-        if 'klientabwesend' in record:
-            entities["absent_clients"].append(record)
-        if 'mafrei' in record:
-            entities["free_mas"].append(record)
-        
     return entities

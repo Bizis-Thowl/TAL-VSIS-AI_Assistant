@@ -3,6 +3,8 @@ from typing import Tuple, List, Dict
 import pandas as pd
 from datetime import datetime
 
+from utils.add_comment import add_employee_comment
+
 import json
 
 features_names = ["timeToSchool", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
@@ -15,7 +17,6 @@ class LearningHandler:
     
     
     def predict_and_score(self, datapoint: List[List]) -> Tuple[int, float]:
-        print(datapoint)
         pred = self.model.predict(datapoint)
         sample = self.model.score_samples(datapoint)
         
@@ -30,29 +31,14 @@ class LearningHandler:
         # Ensure the IDs in the mapping are comparable with `mas` and `clients`
         replacements = replacements.merge(employees, left_on="mas", right_on="id", how="inner")
         replacements = replacements.merge(clients, left_on="clients", right_on="id", how="inner", suffixes=("_mas", "_client"))
-
-        print(replacements)
         
-        date = datetime.today().strftime('%Y-%m-%d')
-        base_availability = self._get_base_availability()
         
         # Extract the relevant information
-        result = replacements.apply(lambda row: {
-            "ma_id": row["id_mas"],
-            "client_id": row["id_client"],
-            "date": date,
-            "timeToSchool": json.loads(row["timeToSchool"]).get(row["school"]),
-            "priority": row["priority"],
-            "ma_availability": row["availability"] == base_availability,
-            "mobility": row["hasCar"],
-            "geschlecht_relevant": row["requiredSex"] != None,
-            "qualifications_met": all(e in row["qualifications"] for e in row["neededQualifications"])
-        }, axis=1)
+        result = replacements.apply(self._extract_info, axis=1)
         
         result_df = pd.DataFrame(result.tolist())
         
         result_df = result_df.filter(items=features_names)
-        print(result_df)
         
         # Format the single row contained in the dataframe
         formatted_row = [list(result_df.iloc[0])]
@@ -69,6 +55,32 @@ class LearningHandler:
         
         return base_availability
     
+    def _extract_info(self, row):
+                
+        date = datetime.today().strftime('%Y-%m-%d')
+        base_availability = self._get_base_availability()
+        
+        ma_id = row["id_mas"]
+        time_to_school = json.loads(row["timeToSchool"]).get(row["school"])
+        priority = row["priority"]
+        qualifications_met = all(e in row["qualifications"] for e in row["neededQualifications"])
+        
+        add_employee_comment(ma_id, f"Luftlinie: {time_to_school / 1000} km")
+        add_employee_comment(ma_id, f"Priorität: {priority}")
+        if not qualifications_met:
+            add_employee_comment(ma_id, "Qualifikationen stimmen sind laut Datensatz nicht ausreichend")
+        
+        return {
+            "ma_id": ma_id,
+            "client_id": row["id_client"],
+            "date": date,
+            "timeToSchool": time_to_school,
+            "priority": priority,
+            "ma_availability": row["availability"] == base_availability,
+            "mobility": row["hasCar"],
+            "geschlecht_relevant": row["requiredSex"] != None,
+            "qualifications_met": qualifications_met
+        }
 
     def _convert_list_to_df(self, data: List[Dict], id_cols: List) -> pd.DataFrame:
         # Convert to DataFrame

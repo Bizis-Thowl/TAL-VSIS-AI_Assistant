@@ -32,5 +32,5 @@ def get_employee_comments(employee_id):
     return employee_comments[employee_id]
 
 def get_ai_comments(recommendation_id):
-    return employee_comments[recommendation_id]
+    return ai_comments[recommendation_id]
 

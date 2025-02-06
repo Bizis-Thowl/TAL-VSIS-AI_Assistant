@@ -15,7 +15,6 @@ def aggregate_client_features(open_client_objects: List, date: str, prio_assignm
     }
     weekday = get_weekday(date)
     for client in open_client_objects:
-        print(client)
         if get_timewindow(client, weekday) is None:
             add_customer_comment(client["id"], "Für diesen Klienten fehlt der Stundenplan")
         client_dict["id"].append(client["id"])

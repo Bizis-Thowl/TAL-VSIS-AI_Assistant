@@ -19,7 +19,7 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict)
         # TODO Implement
         ma_dict["sex"].append(None)
         commute_time = create_commute_info(ma["id"], clients_dict, distances)
-        ma_dict["timeToSchool"].append(json.dumps(commute_time))        
+        ma_dict["timeToSchool"].append(json.dumps(commute_time))
         ma_dict["hasCar"].append(get_mobility(ma))        
         ma_dict["availability"].append(get_ma_availability(ma))
         

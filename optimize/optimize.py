@@ -79,8 +79,8 @@ class Optimizer:
         store_dict = {
             "assigned_pairs": None,
             "unassigned_clients": None,
-            "total_travel_time": None,
-            "total_priority": None
+            "avg_travel_time": None,
+            "avg_priority": None
         }
         assigned_pairs = []
         for (i, j), var in self.assignments.items():
@@ -125,10 +125,8 @@ class Optimizer:
         store_dict["avg_priority"] = sum(total_priority) / len(assigned_pairs)
         
         recommendation_id = self._calculate_unique_recommendation_id()
-        add_ai_comment(recommendation_id, f"Ø Luftlinie: {store_dict['avg_travel_time'] / 1000} km")
-        add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']}")
-        
-        print(f"uuid: {recommendation_id}")
+        add_ai_comment(recommendation_id, f"Ø Luftlinie: {(store_dict['avg_travel_time'] / 1000):.2f} km")
+        add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']:.2f}")
         
         append_to_json_file(store_dict, "recommendations.json")
         
