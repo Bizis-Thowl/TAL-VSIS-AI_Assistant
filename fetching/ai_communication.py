@@ -1,5 +1,5 @@
 import requests
-from requests.auth import HTTPBasicAuth
+from typing import List, Tuple
 import json
 from base64 import b64encode
 
@@ -11,9 +11,7 @@ def update_recommendation(
     user: str,
     pw: str,
     id: str,
-    mavertretendvorschlag1: str,
-    erklaerungvorschlagkurz1: str,
-    erklaerungvorschlag1: str
+    recommendations: List[Tuple[str, str, str]] = []
 ):
     """
     Updates a AI recommendation record.
@@ -27,21 +25,27 @@ def update_recommendation(
     Returns:
         dict: Response from the web service.
     """
-    if len(erklaerungvorschlagkurz1) > 200:
-        raise ValueError("erklaerungvorschlagkurz1 must be 200 characters or fewer.")
-    if len(erklaerungvorschlag1) > 8000:
-        raise ValueError("erklaerungvorschlag1 must be 8000 characters or fewer.")
     
+    print(recommendations)
+    if recommendations:
+        for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
+            if len(erklaerungkurz) > 200:
+                raise ValueError(f"erklaerungvorschlagkurz{i} must be 200 characters or fewer.")
+            if len(erklaerung) > 8000:
+                raise ValueError(f"erklaerungvorschlag{i} must be 8000 characters or fewer.")
+
+    # Construct the URL
     url = f"{base_url_ai}{endpoint}"
-    
     print(url)
-    
-    payload = {
-        "id": id,
-        "mavertretendvorschlag1": mavertretendvorschlag1,
-        "erklaerungvorschlagkurz1": erklaerungvorschlagkurz1,
-        "erklaerungvorschlag1": erklaerungvorschlag1,
-    }
+
+    # Dynamically build the payload
+    payload = {"id": id}
+
+    for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
+        payload[f"mavertretendvorschlag{i}"] = mavertretend
+        payload[f"erklaerungvorschlagkurz{i}"] = erklaerungkurz
+        payload[f"erklaerungvorschlag{i}"] = erklaerung
+
     
     token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
     

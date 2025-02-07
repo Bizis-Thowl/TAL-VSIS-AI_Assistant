@@ -43,20 +43,49 @@ def main():
             continue
         
         assistant.update_solver_model()
-        assistant.solve_model()
-        assigned_pairs, recommendation_id = assistant.process_results()
+        objective_value = None
+        assigned_pairs_list = []
+        recommendation_ids = []
+        for _ in range(3):
+            objective_value = assistant.solve_model(objective_value)
+            assigned_pairs, recommendation_id = assistant.process_results()
+            assigned_pairs_list.append(assigned_pairs)
+            recommendation_ids.append(recommendation_id)
         
+        print(assigned_pairs_list)
+        transposed_pair_list = _collect_alternatives(assigned_pairs_list)
+        print(transposed_pair_list)
         recommendations = []
-        for assigned_pair in assigned_pairs:
-            learner_data = assistant.prepare_learner_data(assigned_pair)
-            learner_info = assistant.retrieve_learner_scores(learner_data)
+        for assigned_pairs in transposed_pair_list:
+            learner_infos = []
+            for i in range(len(assigned_pairs)):
+                learner_data = assistant.prepare_learner_data(assigned_pairs[i])
+                learner_info = assistant.retrieve_learner_scores(learner_data)
+                learner_infos.append(learner_info)
 
-            recommendation = assistant.send_update(assigned_pair, recommendation_id, learner_info)
+            recommendation = assistant.send_update(assigned_pairs, recommendation_ids, learner_infos)
             
             recommendations.append(recommendation)
         
         append_to_json_file(recommendations, "user_recommendations.json")
         time.sleep(10)
+    
+    
+def _collect_alternatives(assigned_pairs_list):
+    alternatives_list = []
+    
+    for assigned_pair in assigned_pairs_list[0]:
+        alternatives_element = [assigned_pair]
+        client = assigned_pair["klient"]
+        for i in range(1,3):
+            for j, alternative_pair in enumerate(assigned_pairs_list[i]):
+                alternative_client = assigned_pair["klient"]
+                if alternative_client == client:
+                    alternatives_element.append(alternative_pair)
+                    break
+        alternatives_list.append(alternatives_element)
+    
+    return alternatives_list
     
 if __name__ == '__main__':
     main()

@@ -7,6 +7,7 @@ import logging
 from utils.append_to_json_file import append_to_json_file
 from utils.add_comment import add_ai_comment, get_ai_comments
 import uuid
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -61,19 +62,20 @@ class Optimizer:
         # for elem in time_window_diffs:
         #     self.model += elem >= 0
 
-    def solve_model(self):
+    def solve_model(self, min_objective_value = None):
+        print(f"min objective: {min_objective_value}")
+        if (min_objective_value != None and self.model.objective_ != None):
+            # self.model = cp.Model(self.model.constraints)
+            self.model += (self.model.objective_ >  min_objective_value)
         if self.model.solve(solver="ortools"):
             logger.info("Optimal solution found!")
             print("Optimal solution found!")
-            # Extract solution
-            solution_assignments = {(i, j): self.assignments[(i, j)].value() for (i, j) in self.assignments}
-            solution_unassigned_clients = [var.value() for var in self.unassigned_clients]
-            
-            return solution_assignments, solution_unassigned_clients
+            print(f"new min objective value: {self.model.objective_value()}")
         else:
             logger.info("No feasible solution found.")
             print("No feasible solution found.")
             return None
+        return self.model.objective_value()
         
     def process_results(self):
         store_dict = {
@@ -120,13 +122,18 @@ class Optimizer:
         print("\nTotal Travel Time:", sum(total_travel_time))
         # print("Total Time Window Difference:", sum(total_time_window_diff))
         
-        store_dict["avg_travel_time"] = sum(total_travel_time) / len(assigned_pairs)
-        print(total_priority)
-        store_dict["avg_priority"] = sum(total_priority) / len(assigned_pairs)
+        if len(assigned_pairs) > 0:
+            store_dict["avg_travel_time"] = sum(total_travel_time) / len(assigned_pairs)
+            print(total_priority)
+            store_dict["avg_priority"] = sum(total_priority) / len(assigned_pairs)
         
         recommendation_id = self._calculate_unique_recommendation_id()
-        add_ai_comment(recommendation_id, f"Ø Luftlinie: {(store_dict['avg_travel_time'] / 1000):.2f} km")
-        add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']:.2f}")
+        
+        if len(assigned_pairs) > 0:
+            add_ai_comment(recommendation_id, f"Ø Luftlinie: {(store_dict['avg_travel_time'] / 1000):.2f} km")
+            add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']:.2f}")
+        else:
+            add_ai_comment(recommendation_id, "Keine Zuordnungen gefunden.")
         
         append_to_json_file(store_dict, "recommendations.json")
         

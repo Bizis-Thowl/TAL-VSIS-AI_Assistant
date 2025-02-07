@@ -1,6 +1,9 @@
 import numpy as np
 import json
 
+# To ensure that the minimized value is high and can be converted to ints for using it to set constraints
+scaling_factor = 1000000
+
 class SoftConstrainedHandler:
     def __init__(self, employees, clients, assignments, unassigned_clients, model, weights=None):
         self.employees = employees
@@ -16,10 +19,10 @@ class SoftConstrainedHandler:
 
         # Weights for each objective (default values if not provided)
         self.weights = weights or {
-            "unassigned": 5.0,
-            "travel_time": 2.0,
-            "time_window": 1.0,
-            "priority": 3.0,
+            "unassigned": 50,
+            "travel_time": 20,
+            "time_window": 10,
+            "priority": 30,
         }
 
     def _compute_travel_time_stats(self):
@@ -55,7 +58,7 @@ class SoftConstrainedHandler:
 
     def _compute_unassigned_objective(self):
         """Objective 1: Minimize unassigned clients."""
-        return self.weights["unassigned"] * sum(self.unassigned_clients)
+        return self.weights["unassigned"] * sum(self.unassigned_clients) * scaling_factor
 
     def _get_travel_time_term(self, i, j):
         """Normalized travel time term for assignment (i,j)."""
@@ -63,7 +66,11 @@ class SoftConstrainedHandler:
         client_school = self.clients.iloc[j]["school"]
         time_to_school = json.loads(employee["timeToSchool"]).get(client_school, 0)
         normalized_time = self._normalize(time_to_school, self.travel_time_mean, self.travel_time_std)
-        return self.assignments[(i, j)] * normalized_time
+        
+        # Scale and round to integer
+        scaled_time = int(round(normalized_time * scaling_factor))    
+        
+        return self.assignments[(i, j)] * scaled_time
 
     def _compute_travel_time_objective(self):
         """Objective 2: Minimize total normalized travel time."""
@@ -80,7 +87,11 @@ class SoftConstrainedHandler:
         client_time_end = client_time_window[1]
         time_diff = employee_avail_end - client_time_end
         normalized_diff = self._normalize(time_diff, self.time_window_mean, self.time_window_std)
-        return self.assignments[(i, j)] * normalized_diff
+        
+        # Scale and round to integer
+        scaled_diff = int(round(normalized_diff * scaling_factor))
+        
+        return self.assignments[(i, j)] * scaled_diff
 
     def _compute_time_window_objective(self):
         """Objective 3: Minimize total time window differences."""
@@ -90,7 +101,11 @@ class SoftConstrainedHandler:
         """Normalized priority term for assignment (i,j)."""
         client_priority = self.clients.iloc[j]["priority"]
         normalized_priority = self._normalize(client_priority, self.priority_mean, self.priority_std)
-        return self.assignments[(i, j)] * normalized_priority
+        
+        # Scale and round to integer
+        scaled_priority = int(round(normalized_priority * scaling_factor))
+        
+        return self.assignments[(i, j)] * scaled_priority
 
     def _compute_priority_objective(self):
         """Objective 4: Minimize total priority scores of assigned clients."""
