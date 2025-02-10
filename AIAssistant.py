@@ -241,8 +241,8 @@ class AIAssistant:
         expl.append(get_customer_comments(client_id))
         expl.append(get_ai_comments(recommendation_id))
         expl = flatten(expl)
-        expl = ", ".join(expl)
-        # expl = self._generate_html(expl)
+        # expl = ", ".join(expl)
+        expl = self._generate_html(expl)
         print(f"expl: {expl}")
 
         return expl
