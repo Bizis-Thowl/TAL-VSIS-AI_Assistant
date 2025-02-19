@@ -26,7 +26,6 @@ def update_recommendation(
         dict: Response from the web service.
     """
     
-    print(recommendations)
     if recommendations:
         for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
             if len(erklaerungkurz) > 200:

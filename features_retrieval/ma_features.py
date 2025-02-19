@@ -72,14 +72,14 @@ def create_commute_info(ma_id: str, clients: dict, distances: list):
         if school_prefix in distance_dict:
             dist_data = distance_dict[school_prefix]
             dist = dist_data.get("einfachdistanzluft")
-            if dist is not None and dist < 80000:
+            if dist is not None and dist < 60000:
                 result[school_prefix] = dist
 
     if len(result) == 0:
-        add_employee_comment(ma_id, "Es gibt keine Klienten im Einzugsgebiet des Mitarbeiters (< 80 km)")
+        add_employee_comment(ma_id, "Es gibt keine Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
         
     if len(result) == 1:
-        add_employee_comment(ma_id, "Es gibt nur einen Klienten im Einzugsgebiet des Mitarbeiters (< 80 km)")
+        add_employee_comment(ma_id, "Es gibt nur einen Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
 
     return result
 

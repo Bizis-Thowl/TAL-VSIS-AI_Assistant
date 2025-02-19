@@ -52,11 +52,10 @@ def main():
             assigned_pairs_list.append(assigned_pairs)
             recommendation_ids.append(recommendation_id)
         
-        print(assigned_pairs_list)
         transposed_pair_list = _collect_alternatives(assigned_pairs_list)
-        print(transposed_pair_list)
         recommendations = []
         for assigned_pairs in transposed_pair_list:
+            print(assigned_pairs)
             learner_infos = []
             for i in range(len(assigned_pairs)):
                 learner_data = assistant.prepare_learner_data(assigned_pairs[i])
@@ -79,7 +78,7 @@ def _collect_alternatives(assigned_pairs_list):
         client = assigned_pair["klient"]
         for i in range(1,3):
             for j, alternative_pair in enumerate(assigned_pairs_list[i]):
-                alternative_client = assigned_pair["klient"]
+                alternative_client = alternative_pair["klient"]
                 if alternative_client == client:
                     alternatives_element.append(alternative_pair)
                     break

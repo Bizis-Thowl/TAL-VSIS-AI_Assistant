@@ -25,6 +25,7 @@ from utils.add_comment import (
     get_customer_comments,
     get_employee_comments,
     get_ai_comments,
+    get_employee_customer_comment
 )
 from utils.flatten_list import flatten
 from utils.append_to_json_file import append_to_json_file
@@ -59,7 +60,7 @@ class AIAssistant:
     def update_dataset(self) -> bool:
 
         # today = datetime.today().strftime('%Y-%m-%d')
-        today = "2025-02-06"
+        today = "2025-02-20"
         # today = "2025-01-13"
 
         reset_comments()
@@ -73,6 +74,7 @@ class AIAssistant:
         print(f"Vertretungen für {today} gefetcht")
 
         filtered_mabw_records = filter_mabw_records(vertretungen)
+        print(f"Vertretungen: \n{vertretungen}")
         open_client_records = filtered_mabw_records["open_clients"]
         rescheduled_ma_records = filtered_mabw_records["rescheduled_mas"]
 
@@ -132,6 +134,8 @@ class AIAssistant:
         )
         if not is_not_initialized:
             new_objective = self.optimizer.solve_model(objective_value)
+            # Add 10 % to encourage diversity
+            new_objective = int(new_objective * 0.9)
             return new_objective
         else: return None
 
@@ -177,6 +181,7 @@ class AIAssistant:
             client_id = assigned_pair["klient"]
             ma_id = assigned_pair["ma"]
             ma_ids.append(ma_id)
+            print(f"Client ID: {client_id}")
             incident_id = self.client_record_assignments[client_id]
             expl_short = self._create_short_explanation(recommendation_ids[i], learner_infos[i])
             expl_shorts.append(expl_short)
@@ -208,19 +213,18 @@ class AIAssistant:
         expl = []
         learner_pred = learner_info[0]
         learner_score = learner_info[1]
-        expl.append(
-            [
-                (
-                    f"Normal ({learner_score})"
-                    if learner_pred == 1
-                    else f"Unnormal ({learner_score})"
-                )
-            ]
-        )
+        # expl.append(
+        #     [
+        #         (
+        #             f"Normal ({learner_score})"
+        #             if learner_pred == 1
+        #             else f"Unnormal ({learner_score})"
+        #         )
+        #     ]
+        # )
         expl.append(get_ai_comments(recommendation_id))
         expl = flatten(expl)
         expl = ", ".join(expl)
-        print(f"short expl: {expl}")
 
         return expl
 
@@ -228,22 +232,23 @@ class AIAssistant:
         expl = []
         learner_pred = learner_info[0]
         learner_score = learner_info[1]
-        expl.append(
-            [
-                (
-                    f"Normal ({learner_score})"
-                    if learner_pred == 1
-                    else f"Unnormal ({learner_score})"
-                )
-            ]
-        )
+        # expl.append(
+        #     [
+        #         (
+        #             f"Normal ({learner_score})"
+        #             if learner_pred == 1
+        #             else f"Unnormal ({learner_score})"
+        #         )
+        #     ]
+        # )
+        expl.append(get_employee_customer_comment(ma_id, client_id))
         expl.append(get_employee_comments(ma_id))
         expl.append(get_customer_comments(client_id))
+        expl.append(["\n", "\n"])
         expl.append(get_ai_comments(recommendation_id))
         expl = flatten(expl)
         # expl = ", ".join(expl)
         expl = self._generate_html(expl)
-        print(f"expl: {expl}")
 
         return expl
 

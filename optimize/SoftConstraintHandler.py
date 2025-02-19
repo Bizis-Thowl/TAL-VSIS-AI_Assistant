@@ -19,10 +19,10 @@ class SoftConstrainedHandler:
 
         # Weights for each objective (default values if not provided)
         self.weights = weights or {
-            "unassigned": 50,
-            "travel_time": 20,
+            "unassigned": 100,
+            "travel_time": 30,
             "time_window": 10,
-            "priority": 30,
+            "priority": 160,
         }
 
     def _compute_travel_time_stats(self):

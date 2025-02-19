@@ -7,4 +7,4 @@ base_url_ai = f"https://{system_spec}.evabrain.de/webservice-2/"
 
 log_store = "store"
 
-update_cache = True
+update_cache = False

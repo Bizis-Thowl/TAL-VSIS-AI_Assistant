@@ -18,6 +18,8 @@ def assign_mabw_record(record: Dict, entities: Dict) -> Dict:
     
     if 'klientzubegleiten' in record and 'maabwesend' in record and 'mavertretend' not in record:
         entities["open_clients"].append(record)
+    elif 'klientzubegleiten' in record and 'mavertretend' not in record:
+        entities["open_clients"].append(record)
     elif 'mavertretend' in record:
         entities["rescheduled_mas"].append(record)
     

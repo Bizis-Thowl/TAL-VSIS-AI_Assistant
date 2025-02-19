@@ -3,7 +3,7 @@ from typing import Tuple, List, Dict
 import pandas as pd
 from datetime import datetime
 
-from utils.add_comment import add_employee_comment
+from utils.add_comment import add_employee_customer_comment, add_employee_comment
 
 import json
 
@@ -61,18 +61,22 @@ class LearningHandler:
         base_availability = self._get_base_availability()
         
         ma_id = row["id_mas"]
+        kl_id = row["id_client"]
         time_to_school = json.loads(row["timeToSchool"]).get(row["school"])
         priority = row["priority"]
         qualifications_met = all(e in row["qualifications"] for e in row["neededQualifications"])
         
-        add_employee_comment(ma_id, f"Luftlinie: {time_to_school / 1000} km")
-        add_employee_comment(ma_id, f"Priorität: {priority}")
+        add_employee_customer_comment(ma_id, kl_id, f"Luftlinie: {time_to_school / 1000} km")
+        # add_employee_customer_comment(ma_id, kl_id, f"Priorität: {priority}")
         if not qualifications_met:
-            add_employee_comment(ma_id, "Qualifikationen stimmen sind laut Datensatz nicht ausreichend")
+            add_employee_customer_comment(ma_id, kl_id, "Qualifikationen stimmen sind laut Datensatz nicht ausreichend")
+        
+        
+        add_employee_customer_comment(ma_id, kl_id, "Mit Auto" if row["hasCar"] else "Ohne Auto")
         
         return {
             "ma_id": ma_id,
-            "client_id": row["id_client"],
+            "client_id": kl_id,
             "date": date,
             "timeToSchool": time_to_school,
             "priority": priority,
