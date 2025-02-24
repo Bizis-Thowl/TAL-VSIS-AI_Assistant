@@ -229,7 +229,8 @@ class AIAssistant:
         return expl
 
     def _create_explanation(self, ma_id, client_id, recommendation_id, learner_info):
-        expl = []
+        expl_specific = []
+        expl_general = []
         learner_pred = learner_info[0]
         learner_score = learner_info[1]
         # expl.append(
@@ -241,14 +242,14 @@ class AIAssistant:
         #         )
         #     ]
         # )
-        expl.append(get_employee_customer_comment(ma_id, client_id))
-        expl.append(get_employee_comments(ma_id))
-        expl.append(get_customer_comments(client_id))
-        expl.append(["\n", "\n"])
-        expl.append(get_ai_comments(recommendation_id))
-        expl = flatten(expl)
+        expl_specific.append(get_employee_customer_comment(ma_id, client_id))
+        expl_specific.append(get_employee_comments(ma_id))
+        expl_specific.append(get_customer_comments(client_id))
+        expl_general.append(get_ai_comments(recommendation_id))
+        expl_specific = flatten(expl_specific)
+        expl_general = flatten(expl_general)
         # expl = ", ".join(expl)
-        expl = self._generate_html(expl)
+        expl = self._generate_html(expl_specific, expl_general)
 
         return expl
 
@@ -272,7 +273,7 @@ class AIAssistant:
         else:
             return False
 
-    def _generate_html(self, input_list, ordered=False, title=None):
+    def _generate_html(self, input_list1, input_list2):
         """
         Converts a Python list of strings into a formatted HTML list.
 
@@ -285,19 +286,12 @@ class AIAssistant:
             str: Formatted HTML string
         """
         # Escape HTML special characters in all list items
-        escaped_items = [html_escape.escape(item) for item in input_list]
+        escaped_items1 = [html_escape.escape(item) for item in input_list1]
+        escaped_items2 = [html_escape.escape(item) for item in input_list2]
 
         # Create list items
-        list_items = "\n".join([f"    <li>{item}</li>" for item in escaped_items])
-
-        # Determine list type
-        list_tag = "ol" if ordered else "ul"
-
-        # Create optional title
-        title_html = ""
-        if title:
-            escaped_title = html_escape.escape(title)
-            title_html = f'<h2 style="font-family: Arial, sans-serif; color: #333;">{escaped_title}</h2>\n'
+        list_items1 = "\n".join([f"    <li>{item}</li>" for item in escaped_items1])
+        list_items2 = "\n".join([f"    <li>{item}</li>" for item in escaped_items2])
 
         # HTML template with embedded CSS styling
         html_template = f"""<!DOCTYPE html>
@@ -339,10 +333,14 @@ class AIAssistant:
         </head>
         <body>
         <div class="list-container">
-        {title_html}
-        <{list_tag} class="custom-list">
-        {list_items}
-        </{list_tag}>
+        <ul class="custom-list">
+        {list_items1}
+        </ul>
+        <br />
+        <br />
+        <ul class="custom-list">
+        {list_items2}
+        </ul>
         </div>
         </body>
         </html>"""
