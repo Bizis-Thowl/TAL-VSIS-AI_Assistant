@@ -59,19 +59,22 @@ class AIAssistant:
 
     def update_dataset(self) -> bool:
 
-        # today = datetime.today().strftime('%Y-%m-%d')
-        today = "2025-02-20"
-        # today = "2025-01-13"
+        today = datetime.today()
+        if today.hour >= 10 and today.minute >= 30:
+            tomorrow = today.timedelta(days=1)
+            relevant_date = tomorrow.strftime('%Y-%m-%d')
+        else:
+            relevant_date = today.strftime('%Y-%m-%d')
 
         reset_comments()
-        vertretungen = get_vertretungen(today, self.user, self.pw, update_cache=True)
+        vertretungen = get_vertretungen(relevant_date, self.user, self.pw, update_cache=True)
 
         if vertretungen != self.vertretungen:
             self.vertretungen = vertretungen
         else:
             return False
 
-        print(f"Vertretungen für {today} gefetcht")
+        print(f"Vertretungen für {relevant_date} gefetcht")
 
         filtered_mabw_records = filter_mabw_records(vertretungen)
         print(f"Vertretungen: \n{vertretungen}")
