@@ -6,6 +6,7 @@ from AIAssistant import AIAssistant
 import time
 
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
+from fetching.experience_logging import get_experience_log
 
 from utils.append_to_json_file import append_to_json_file
 
@@ -29,6 +30,7 @@ distances = get_distances(user, pw, update_cache=update_cache)
 clients = get_clients(user, pw, update_cache=update_cache)
 mas = get_mas(user, pw, update_cache=update_cache)
 prio_assignments = get_prio_assignments(user, pw, update_cache=update_cache)
+experience_log = get_experience_log()
 
 def main():
     

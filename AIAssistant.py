@@ -30,18 +30,19 @@ from utils.add_comment import (
 from utils.flatten_list import flatten
 from utils.append_to_json_file import append_to_json_file
 
+from core.data.data_processor import DataProcessor
 from learning.LearningHandler import LearningHandler
 
 
 class AIAssistant:
 
-    def __init__(self, user, pw, mas, clients, prio_assignments, distances):
+    def __init__(self, user, pw, mas, clients, prio_assignments, distances, experience_log):
 
         self.mas = mas
         self.clients = clients
         self.prio_assignments = prio_assignments
         self.distances = distances
-
+        self.experience_log = experience_log
         self.vertretungen = []
         self.user = user
         self.pw = pw
@@ -50,15 +51,19 @@ class AIAssistant:
         self.clients_df = pd.DataFrame()
         self.mas_df = pd.DataFrame()
         self.client_record_assignments = {}
+        
+        # Data processor
+        self.data_processor = DataProcessor(mas, clients, prio_assignments, distances, experience_log)
 
         # Solver
         self.optimizer = None
 
         # Learner
         self.learner = LearningHandler()
+             
 
     def update_dataset(self) -> bool:
-
+        
         today = datetime.today()
         if today.hour >= 10 and today.minute >= 30:
             tomorrow = today.timedelta(days=1)
@@ -75,45 +80,29 @@ class AIAssistant:
             return False
 
         print(f"Vertretungen für {relevant_date} gefetcht")
+        
+        mabw_records = self.data_processor.get_mabw_records(vertretungen)
+        rescheduled_ma_records = mabw_records["rescheduled_mas"]
 
-        filtered_mabw_records = filter_mabw_records(vertretungen)
-        print(f"Vertretungen: \n{vertretungen}")
-        open_client_records = filtered_mabw_records["open_clients"]
-        rescheduled_ma_records = filtered_mabw_records["rescheduled_mas"]
-
-        ma_assignments = get_ma_assignments(rescheduled_ma_records)
+        ma_assignments = self.data_processor.get_ma_assignments(rescheduled_ma_records)
         assigned_mas = list(ma_assignments.keys())
+        kabw_records = self.data_processor.get_kabw_records(vertretungen, assigned_mas)
+        
+        open_client_records = mabw_records["open_clients"]
+                
+        self.client_record_assignments = self.data_processor.get_client_record_assignments(mabw_records["open_clients"])
 
-        filtered_kabw_records = filter_kabw_records(vertretungen, assigned_mas)
-        absent_client_records = filtered_kabw_records["absent_clients"]
-        free_ma_records = filtered_kabw_records["free_mas"]
+        absent_client_records = kabw_records["absent_clients"]
+        free_ma_records = kabw_records["free_mas"]
 
         print("Records extrahiert")
 
         open_client_ids = get_open_client_ids(open_client_records)
         free_ma_ids = get_free_ma_ids(free_ma_records, absent_client_records, self.mas)
-
-        self.client_record_assignments = get_client_record_assignments(
-            open_client_records
-        )
-
-        append_to_json_file(open_client_ids, "open_clients.json")
-        append_to_json_file(free_ma_ids, "free_mas.json")
-        append_to_json_file(ma_assignments, "ma_assignments.json")
-
+        
         print("ids gesammelt")
-
-        open_client_objects = get_objects_by_id(self.clients, open_client_ids)
-        free_ma_objects = get_objects_by_id(self.mas, free_ma_ids)
-
-        print("Objekte erzeugt")
-
-        self.clients_df, clients_dict = aggregate_client_features(
-            open_client_objects, today, self.prio_assignments
-        )
-        self.mas_df, mas_dict = aggregate_ma_features(
-            free_ma_objects, self.distances, clients_dict
-        )
+        
+        self.clients_df, self.mas_df = self.data_processor.create_day_dataset(open_client_ids, free_ma_ids, relevant_date)
 
         print("Datensätze erstellt")
 

@@ -176,6 +176,8 @@ cython_debug/
 data/*
 !data/placeholder.jsonl
 
+models/*
+!models/placeholder.jsonl
 
 store/*
 !store/placeholder.jsonl

@@ -23,7 +23,7 @@ def aggregate_client_features(open_client_objects: List, date: str, prio_assignm
         client_dict["timeWindow"].append(get_timewindow(client, weekday)) 
         priority_id = client.get("vertretungab")["id"] if client.get("vertretungab") != None else 100       
         client_dict["priority"].append(convert_priority(prio_assignments, priority_id))
-        client_dict["school"].append(client["schule"]["id"][0:6] if client.get("schule", None) != None else None)
+        client_dict["school"].append(client["schule"]["id"] if client.get("schule", None) != None else None)
         
     client_df = pd.DataFrame.from_dict(client_dict)
     

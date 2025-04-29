@@ -1,0 +1,115 @@
+import json
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+from pathlib import Path
+
+from fetching.missy_fetching import (
+    get_clients
+)
+from utils.daterange import daterange
+from utils.min_max_date import min_max_date
+
+from config import update_cache
+import os
+from dotenv import load_dotenv
+
+# load .env file to environment
+load_dotenv(override=True)
+
+user = os.getenv("USER")
+pw = os.getenv("PASSWORD")
+
+INPUT_FILE = "data/vertretungsfall_all.json"      # Contains the list of raw elements
+OUTPUT_FILE = "data/experience_log.json"  # Where the adapted list is saved
+
+clients = get_clients(user, pw, update_cache=update_cache)
+
+def load_json_file(path: str) -> List[Dict]:
+    """Load JSON data from file or return empty list if file doesn't exist."""
+    if Path(path).exists():
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_json_file(path: str, data: List[Dict]) -> None:
+    """Save JSON data to file."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+def process_data_for_date(data: List[Dict], target_date: datetime, output_path: str) -> None:
+    """Process assignments for a specific date and update experience logs."""
+    print(f"Processing assignments for date: {target_date}")
+    experience_list = load_json_file(output_path)
+
+    # Initialize experience maps with default empty dictionaries for missing keys
+    ma_experience_map = {}
+    ma_school_experience_map = {}
+    
+    for entry in experience_list:
+        ma_id = entry["ma"]
+        ma_experience_map[ma_id] = entry.get("client_experience", {})
+        ma_school_experience_map[ma_id] = entry.get("school_experience", {})
+
+    for entry in data:
+        try:
+            start = datetime.strptime(entry["startdatum"], "%Y-%m-%d").date()
+            end = datetime.strptime(entry["enddatum"], "%Y-%m-%d").date()
+        except (ValueError, KeyError) as e:
+            print(f"Skipping entry with invalid dates: {entry}. Error: {e}")
+            continue
+        
+        if start <= target_date <= end:
+            ma_vertretend = entry.get("mavertretend")
+            if not ma_vertretend:
+                continue
+                
+            ma_id = ma_vertretend["id"]
+            client_id = entry["klientzubegleiten"]["id"]
+            client_object = next((client for client in clients if client["id"] == client_id), None)
+            
+            if not client_object:
+                print(f"Warning: Client {client_id} not found in clients list")
+                continue
+                
+            school_id = client_object["schule"]["id"]
+            target_date_str = target_date.strftime("%Y-%m-%d")
+
+            # Initialize maps for new MA
+            if ma_id not in ma_experience_map:
+                ma_experience_map[ma_id] = {}
+            if ma_id not in ma_school_experience_map:
+                ma_school_experience_map[ma_id] = {}
+
+            # Update client experience
+            if client_id not in ma_experience_map[ma_id]:
+                ma_experience_map[ma_id][client_id] = []
+            if target_date_str not in ma_experience_map[ma_id][client_id]:
+                ma_experience_map[ma_id][client_id].append(target_date_str)
+                print(f"Added client assignment: MA {ma_id} with client {client_id} on {target_date_str}")
+
+            # Update school experience
+            if school_id not in ma_school_experience_map[ma_id]:
+                ma_school_experience_map[ma_id][school_id] = []
+            if target_date_str not in ma_school_experience_map[ma_id][school_id]:
+                ma_school_experience_map[ma_id][school_id].append(target_date_str)
+                print(f"Added school assignment: MA {ma_id} at school {school_id} on {target_date_str}")
+
+    # Rebuild and save the experience list
+    updated_experience_list = [
+        {
+            "ma": ma_id,
+            "client_experience": ma_experience_map[ma_id],
+            "school_experience": ma_school_experience_map[ma_id]
+        }
+        for ma_id in set(ma_experience_map.keys()) | set(ma_school_experience_map.keys())
+    ]
+    save_json_file(output_path, updated_experience_list)
+
+# Example usage
+if __name__ == "__main__":
+    input_data = load_json_file(INPUT_FILE)
+    min_date, max_date = min_max_date(input_data)
+    for date in daterange(min_date, max_date + timedelta(days=1)):
+        process_data_for_date(input_data, date, OUTPUT_FILE)
+        
+    
