@@ -5,7 +5,8 @@ def filter_mabw_records(records: List) -> Tuple[List]:
     # Initialize filtered list
     entities = {
         "open_clients": [],
-        "rescheduled_mas": []
+        "rescheduled_mas": [],
+        "open_mas": []
     }
     
     for record in records:
@@ -17,10 +18,13 @@ def filter_mabw_records(records: List) -> Tuple[List]:
 def assign_mabw_record(record: Dict, entities: Dict) -> Dict:
     
     if 'klientzubegleiten' in record and 'maabwesend' in record and 'mavertretend' not in record:
+        entities["open_mas"].append(record)
+    elif 'klientzubegleiten' in record and 'maabwesend' in record:
         entities["open_clients"].append(record)
     elif 'klientzubegleiten' in record and 'mavertretend' not in record:
         entities["open_clients"].append(record)
     elif 'mavertretend' in record:
         entities["rescheduled_mas"].append(record)
+        entities["open_mas"].append(record)
     
     return entities

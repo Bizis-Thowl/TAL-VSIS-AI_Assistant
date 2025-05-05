@@ -3,7 +3,9 @@ from typing import Tuple, List, Dict
 import pandas as pd
 from datetime import datetime
 
-from utils.add_comment import add_employee_customer_comment, add_employee_comment
+from utils.add_comment import add_employee_customer_comment
+from learning.model import AbnormalityModel
+from utils.base_availability import base_availability
 
 import json
 
@@ -11,14 +13,13 @@ features_names = ["timeToSchool", "priority", "ma_availability", "mobility", "ge
 
 class LearningHandler:
     
-    def __init__(self):
+    def __init__(self, abnormality_model: AbnormalityModel):
         
-        self.model = retrieve_model("isolation_forest.pkl")
-    
+        self.abnormality_model = abnormality_model
     
     def predict_and_score(self, datapoint: List[List]) -> Tuple[int, float]:
-        pred = self.model.predict(datapoint)
-        sample = self.model.score_samples(datapoint)
+        pred = self.abnormality_model.predict(datapoint)
+        sample = self.abnormality_model.score_samples(datapoint)
         
         return pred, float("{:.2f}".format(sample[0]))
 
@@ -27,83 +28,35 @@ class LearningHandler:
         # Find the corresponding rows
         m_id = assignment["ma"]
         c_id = assignment["klient"]
-        replacements = self._create_replacements_df(m_id, c_id)
-        # Ensure the IDs in the mapping are comparable with `mas` and `clients`
-        replacements = replacements.merge(employees, left_on="mas", right_on="id", how="inner")
-        replacements = replacements.merge(clients, left_on="clients", right_on="id", how="inner", suffixes=("_mas", "_client"))
         
+        emp = employees.loc[employees['id'] == m_id].iloc[0]
+        client = clients.loc[clients['id'] == c_id].iloc[0]
         
-        # Extract the relevant information
-        result = replacements.apply(self._extract_info, axis=1)
+        time_to_school = json.loads(emp["timeToSchool"]).get(client["school"])
+        priority = client["priority"]
+        qualifications_met = all(e in emp["qualifications"] for e in client["neededQualifications"])
         
-        result_df = pd.DataFrame(result.tolist())
-        
-        result_df = result_df.filter(items=features_names)
-        
-        # Format the single row contained in the dataframe
-        formatted_row = [list(result_df.iloc[0])]
-        
-        return formatted_row
-    
-    def _get_base_availability(self):
-        # Base availability
-        start = datetime.strptime("00:00:00", '%H:%M:%S').time()
-        default_end = datetime.strptime("23:59:59", '%H:%M:%S').time()
-        start_as_float = start.hour + start.minute / 60
-        default_end_as_float = default_end.hour + default_end.minute / 60
-        base_availability = (start_as_float, default_end_as_float)
-        
-        return base_availability
-    
-    def _extract_info(self, row):
-                
-        date = datetime.today().strftime('%Y-%m-%d')
-        base_availability = self._get_base_availability()
-        
-        ma_id = row["id_mas"]
-        kl_id = row["id_client"]
-        time_to_school = json.loads(row["timeToSchool"]).get(row["school"])
-        priority = row["priority"]
-        qualifications_met = all(e in row["qualifications"] for e in row["neededQualifications"])
-        
-        add_employee_customer_comment(ma_id, kl_id, f"Luftlinie: {time_to_school / 1000} km")
+        add_employee_customer_comment(m_id, c_id, f"Luftlinie: {time_to_school / 1000} km")
         # add_employee_customer_comment(ma_id, kl_id, f"Priorität: {priority}")
         if not qualifications_met:
-            add_employee_customer_comment(ma_id, kl_id, "Qualifikationen stimmen sind laut Datensatz nicht ausreichend")
+            add_employee_customer_comment(m_id, c_id, "Qualifikationen sind laut Datensatz nicht ausreichend")
         
+        cl_experience = json.loads(emp["cl_experience"]).get(client["id"])
+        school_experience = json.loads(emp["school_experience"]).get(client["school"])
         
-        add_employee_customer_comment(ma_id, kl_id, "Mit Auto" if row["hasCar"] else "Ohne Auto")
+        add_employee_customer_comment(m_id, c_id, "Mit Auto" if emp["hasCar"] else "Ohne Auto")
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient: {cl_experience}")
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Schule: {school_experience}")
         
-        return {
-            "ma_id": ma_id,
-            "client_id": kl_id,
-            "date": date,
+        combined_data = {
             "timeToSchool": time_to_school,
+            "cl_experience": cl_experience,
+            "school_experience": school_experience,
             "priority": priority,
-            "ma_availability": row["availability"] == base_availability,
-            "mobility": row["hasCar"],
-            "geschlecht_relevant": row["requiredSex"] != None,
+            "ma_availability": emp["availability"] == base_availability,
+            "mobility": emp["hasCar"],
+            "geschlecht_relevant": client["requiredSex"] != None,
             "qualifications_met": qualifications_met
         }
-
-    def _convert_list_to_df(self, data: List[Dict], id_cols: List) -> pd.DataFrame:
-        # Convert to DataFrame
-        df = pd.json_normalize(data)
-
-        # Flatten list columns by extracting 'id' values
-        for col in id_cols:
-            try:
-                df[col] = df[col].apply(lambda x: ', '.join(d['id'] for d in x) if isinstance(x, list) else '')
-            except KeyError:
-                print(f"Column {col} does not exist")
-            
-        return df
-    
-    def _create_replacements_df(self, ma: str, klient: str) -> pd.DataFrame:
-        ma_client_mapping = {"mas": [ma], "clients": [klient]}
-        for i, elem in enumerate(ma_client_mapping["mas"]):
-            ma_client_mapping["mas"][i] = elem
-            ma_client_mapping["clients"][i] = ma_client_mapping["clients"][i]
-            
-        df = pd.DataFrame(ma_client_mapping)
-        return df
+        
+        return list(combined_data.values())

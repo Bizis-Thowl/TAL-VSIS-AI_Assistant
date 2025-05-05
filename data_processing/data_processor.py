@@ -1,12 +1,12 @@
 
 from typing import List, Tuple, Dict
 
-from core.data.features_retrieval.client_features import aggregate_client_features
-from core.data.features_retrieval.ma_features import aggregate_ma_features
-from core.data.features_retrieval.filter_mabw_records import filter_mabw_records
-from core.data.features_retrieval.filter_kabw_records import filter_kabw_records
-from core.data.features_retrieval.retrieve_ids import get_ma_assignments, get_open_client_ids, get_free_ma_ids
-from core.data.features_retrieval.retrieve_objects import get_objects_by_id
+from data_processing.features_retrieval.client_features import aggregate_client_features
+from data_processing.features_retrieval.ma_features import aggregate_ma_features
+from data_processing.features_retrieval.filter_mabw_records import filter_mabw_records
+from data_processing.features_retrieval.filter_kabw_records import filter_kabw_records
+from data_processing.features_retrieval.retrieve_ids import get_ma_assignments, get_open_client_ids, get_free_ma_ids
+from data_processing.features_retrieval.retrieve_objects import get_objects_by_id
 
 
 class DataProcessor:

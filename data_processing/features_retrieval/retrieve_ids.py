@@ -5,7 +5,10 @@ def get_free_ma_ids(free_ma_records: List, absent_client_records, mas) -> List:
     
     open_mas = []
     for record in free_ma_records:
-        open_mas.append(record["mafrei"]["id"])
+        if "mafrei" in record:
+            open_mas.append(record["mafrei"]["id"])
+        else:
+            open_mas.append(record["mavertretend"]["id"])
     
     # Additionally to the free mas based on the records, search the database for mas without clients.
     # TODO: Check how to do it properly, as this includes mas that are not active anymore

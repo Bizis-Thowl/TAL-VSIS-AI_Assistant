@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+import shap
 
 from datetime import datetime, timedelta
 
@@ -15,7 +16,7 @@ from core.data.data_processor import DataProcessor
 from core.data.features_retrieval.create_replacements import create_replacements
 from core.data.features_retrieval.create_single_df import create_single_df
 
-from core.learning.model import Model
+from learning.model import AbnormalityModel
 
 from utils.daterange import daterange
 from utils.min_max_date import min_max_date
@@ -111,7 +112,7 @@ def main():
     non_nan_dataset = full_dataset[~full_dataset.isna().any(axis=1)]
     X_train = non_nan_dataset[training_features]
     
-    model = Model()
+    model = AbnormalityModel(use_cache=False)
     model.train(X_train)
     
     test_row = X_train.iloc[[-1]]
@@ -123,7 +124,15 @@ def main():
     print(f"model.score_samples(X_train[-1]): {model.score_samples(test_row)}")
     print(f"model.decision_function(X_train[-1]): {model.get_decision_function(test_row)}")
     print(f"model.evaluate(X_train): {model.evaluate(X_train)}")
-
+    
+    # Use SHAP's TreeExplainer for IsolationForest
+    explainer = shap.KernelExplainer(model.predict, X_train)
+    shap_values = explainer.shap_values(test_row)
+    
+    print(f"shap_values: {shap_values}")
+    
+    shap.initjs()
+    shap.force_plot(explainer.expected_value, shap_values, test_row)
 
 if __name__ == "__main__":
     main()

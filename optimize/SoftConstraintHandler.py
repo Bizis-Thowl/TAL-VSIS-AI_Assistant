@@ -5,13 +5,14 @@ import json
 scaling_factor = 1000000
 
 class SoftConstrainedHandler:
-    def __init__(self, employees, clients, assignments, unassigned_clients, model, weights=None):
+    def __init__(self, employees, clients, assignments, unassigned_clients, model, learner_dataset, abnormality_model, weights=None):
         self.employees = employees
         self.clients = clients
         self.assignments = assignments
         self.unassigned_clients = unassigned_clients
         self.model = model
-
+        self.learner_dataset = learner_dataset
+        self.abnormality_model = abnormality_model
         # Compute feature statistics for standardization
         self.travel_time_mean, self.travel_time_std = self._compute_travel_time_stats()
         self.time_window_mean, self.time_window_std = self._compute_time_window_stats()
@@ -19,10 +20,11 @@ class SoftConstrainedHandler:
 
         # Weights for each objective (default values if not provided)
         self.weights = weights or {
-            "unassigned": 100,
+            "unassigned": 1000,
             "travel_time": 30,
             "time_window": 10,
             "priority": 160,
+            "abnormality": 200
         }
 
     def _compute_travel_time_stats(self):
@@ -34,6 +36,16 @@ class SoftConstrainedHandler:
                 time_to_school = json.loads(employee["timeToSchool"]).get(client_school, 0)
                 travel_times.append(time_to_school)
         return np.mean(travel_times), np.std(travel_times) if travel_times else (0, 1)
+
+    def _compute_abnormality(self, i, j):
+        """Compute abnormality of employee-client pair."""
+        pair_features = self.learner_dataset[(i, j)]
+        
+        score = self.abnormality_model.predict(pair_features)
+        
+        int_score = int(round(score * scaling_factor))
+        print("int_score: ", int_score)
+        return int_score
 
     def _compute_time_window_stats(self):
         """Compute mean and standard deviation of time window differences."""
@@ -110,6 +122,10 @@ class SoftConstrainedHandler:
     def _compute_priority_objective(self):
         """Objective 4: Minimize total priority scores of assigned clients."""
         return self.weights["priority"] * sum(self._get_priority_term(i, j) for (i, j) in self.assignments)
+    
+    def _compute_abnormality_objective(self):
+        """Objective 5: Minimize total abnormality scores of assigned clients."""
+        return self.weights["abnormality"] * sum(self._compute_abnormality(i, j) for (i, j) in self.assignments)
 
     def set_up_objectives(self):
         """Combine and set all optimization objectives in the model."""
@@ -118,6 +134,7 @@ class SoftConstrainedHandler:
             + self._compute_travel_time_objective()
             + self._compute_time_window_objective()
             + self._compute_priority_objective()
+            # + self._compute_abnormality_objective()
         )
         self.model.minimize(total_objective)
         return self.model
