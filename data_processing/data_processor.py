@@ -43,6 +43,9 @@ class DataProcessor:
         open_client_objects = get_objects_by_id(self.clients, clients)
         free_ma_objects = get_objects_by_id(self.mas, mas)
         
+        print(open_client_objects)
+        print(free_ma_objects)
+        
         clients_df, clients_dict = aggregate_client_features(
             open_client_objects, date, self.prio_assignments
         )

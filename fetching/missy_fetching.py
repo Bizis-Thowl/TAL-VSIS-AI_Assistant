@@ -1,12 +1,11 @@
 import requests
-from requests.auth import HTTPBasicAuth
 import json
 from datetime import datetime
 from endpoints import endpoints_missy
 from config import base_url_missy
 from utils.read_file import read_file
 from base64 import b64encode
-
+from utils.daterange import daterange
 
 def get_vertretungen(date, user, pw, use_cache = True, update_cache = False):
     
@@ -85,6 +84,21 @@ def fetch_object_w_date(user, pw, endpoint_key, date):
     response_object = response.json()
     
     return response_object
+
+def fetch_date_objects_in_range(user, password, endpoint_key, start_date, end_date):
+    
+    response_objects = []
+    
+    for date in daterange(start_date, end_date):
+        print(f"Fetching {endpoint_key} for {date}")
+        response_object = fetch_object_w_date(user, password, endpoint_key, date)
+        for elem in response_object["VMBegleitungList"]:
+            response_objects.append(elem)
+        
+    handle_cache_update(response_objects, f"{endpoint_key}_all")
+        
+    return response_objects
+
 
 def handle_cache_update(response_object, endpoint_key):
     json_object = json.dumps(response_object, indent=4)

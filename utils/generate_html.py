@@ -13,8 +13,8 @@ def generate_html(input_list1, input_list2):
         str: Formatted HTML string
     """
     # Escape HTML special characters in all list items
-    escaped_items1 = [html_escape.escape(item) for item in input_list1]
-    escaped_items2 = [html_escape.escape(item) for item in input_list2]
+    escaped_items1 = [html_escape(item) for item in input_list1]
+    escaped_items2 = [html_escape(item) for item in input_list2]
 
     # Create list items
     list_items1 = "\n".join([f"    <li>{item}</li>" for item in escaped_items1])

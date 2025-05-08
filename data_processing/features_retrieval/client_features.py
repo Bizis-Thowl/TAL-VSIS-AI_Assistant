@@ -41,7 +41,7 @@ def get_qualifications(client):
 
 def get_timewindow(client, weekday):
     timetable = client.get("aktuellerstundenplan")
-    if (timetable == None):
+    if (timetable == None) or timetable.get(f"{weekday}von") == None:
         return None
     start = timetable.get(f"{weekday}von")
     start_formatted = datetime.strptime(start, '%H:%M:%S').time()

@@ -3,13 +3,12 @@ from dotenv import load_dotenv
 import logging
 
 import time
-from datetime import datetime, timedelta
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
 from fetching.experience_logging import get_experience_log
 
 from utils.append_to_json_file import append_to_json_file
 
-from config import update_cache
+from config import update_cache, relevant_date_test
 
 from data_processing.data_processor import DataProcessor
 from fetching.missy_fetching import get_vertretungen
@@ -49,8 +48,7 @@ def main():
     
     while True:
         
-        # set a date
-        relevant_date = "2025-04-03"
+        relevant_date = relevant_date_test
         
         # today = datetime.today()
         # if today.hour >= 10 and today.minute >= 30:
@@ -78,12 +76,14 @@ def main():
         print("assigned_mas: ", assigned_mas)
         kabw_records = data_processor.get_kabw_records(vertretungen, assigned_mas)
         
+        print("kabw_records: ", kabw_records)
+        
         client_record_assignments = data_processor.get_client_record_assignments(mabw_records["open_clients"])
 
         print("client_record_assignments: ", client_record_assignments)
 
         absent_client_records = kabw_records["absent_clients"]
-        free_ma_records = mabw_records["rescheduled_mas"]
+        free_ma_records = kabw_records["free_mas"]
 
         print("Records extrahiert")
 
@@ -96,6 +96,9 @@ def main():
         print("offene Klienten: ", open_client_ids)
         
         clients_df, mas_df = data_processor.create_day_dataset(open_client_ids, free_ma_ids, relevant_date)
+        
+        print(clients_df)
+        print(mas_df)
         
         abnormality_model = AbnormalityModel()
         

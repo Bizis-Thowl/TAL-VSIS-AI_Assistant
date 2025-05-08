@@ -19,7 +19,7 @@ def assign_kabw_record(record: Dict, entities: Dict, assigned_mas: List) -> Dict
     if 'mavertretend' not in record:
         if 'klientabwesend' in record:
             entities["absent_clients"].append(record)
-        if 'mafrei' in record and record["mafrei"]["id"]: # not in assigned_mas:
+        if 'mafrei' in record and record["mafrei"]["id"] not in assigned_mas:
             entities["free_mas"].append(record)
             
         

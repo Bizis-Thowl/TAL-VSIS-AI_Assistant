@@ -10,7 +10,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime
-
+import shap
 model_path = "models/isolation_forst.pkl"
 
 
@@ -181,3 +181,10 @@ class AbnormalityModel:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         g.savefig(f"models/isolation_forest_visualization_{timestamp}.png")
+
+    def get_explanation(self, X: np.ndarray) -> str:
+        # Use SHAP's TreeExplainer for IsolationForest
+        explainer = shap.KernelExplainer(self.model.predict, X)
+        shap_values = explainer.shap_values(X)
+        
+        return shap_values

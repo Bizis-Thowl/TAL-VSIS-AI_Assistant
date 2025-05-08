@@ -59,4 +59,4 @@ class LearningHandler:
             "qualifications_met": qualifications_met
         }
         
-        return list(combined_data.values())
+        return [list(combined_data.values())]
