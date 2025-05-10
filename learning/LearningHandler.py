@@ -1,8 +1,5 @@
-from learning.retrieve_model import retrieve_model
 from typing import Tuple, List, Dict
 import pandas as pd
-from datetime import datetime
-
 from utils.add_comment import add_employee_customer_comment
 from learning.model import AbnormalityModel
 from utils.base_availability import base_availability
@@ -22,6 +19,10 @@ class LearningHandler:
         sample = self.abnormality_model.score_samples(datapoint)
         
         return pred, float("{:.2f}".format(sample[0]))
+    
+    def get_explanation(self, datapoint: List[List]) -> List[List]:
+        shap_values = self.abnormality_model.get_explanation(datapoint[0])
+        return shap_values
 
     def prepare_data(self, assignment: Dict, employees: pd.DataFrame, clients: pd.DataFrame) -> List[List] | None:
         
@@ -43,15 +44,18 @@ class LearningHandler:
         
         cl_experience = json.loads(emp["cl_experience"]).get(client["id"])
         school_experience = json.loads(emp["school_experience"]).get(client["school"])
-        
+        short_term_cl_experience = json.loads(emp["short_term_cl_experience"]).get(client["id"])
+
         add_employee_customer_comment(m_id, c_id, "Mit Auto" if emp["hasCar"] else "Ohne Auto")
         add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient: {cl_experience}")
         add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Schule: {school_experience}")
-        
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient in letzter Woche: {short_term_cl_experience}")
+
         combined_data = {
             "timeToSchool": time_to_school,
             "cl_experience": cl_experience,
             "school_experience": school_experience,
+            "short_term_cl_experience": short_term_cl_experience,
             "priority": priority,
             "ma_availability": emp["availability"] == base_availability,
             "mobility": emp["hasCar"],

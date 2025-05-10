@@ -41,4 +41,4 @@ def get_ai_comments(recommendation_id):
     return ai_comments[recommendation_id]
 
 def get_employee_customer_comment(employee_id, customer_id):
-    return employee_customer_comments[f"{employee_id}{customer_id}"][:2]
+    return employee_customer_comments[f"{employee_id}{customer_id}"][:5]

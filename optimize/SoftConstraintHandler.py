@@ -24,7 +24,10 @@ class SoftConstrainedHandler:
             "travel_time": 30,
             "time_window": 10,
             "priority": 160,
-            "abnormality": 200
+            "abnormality": 200,
+            "client_experience": 100,
+            "school_experience": 100,
+            "short_term_client_experience": 100
         }
 
     def _compute_travel_time_stats(self):
@@ -45,7 +48,63 @@ class SoftConstrainedHandler:
         
         int_score = int(round(score * scaling_factor))
         print("int_score: ", int_score)
-        return int_score
+        # return negative score to minimize
+        return -int_score
+    
+    def _compute_short_term_client_experience_stats(self):
+        """Compute mean and standard deviation of short term client experience scores."""
+        short_term_client_experience_scores = []
+        for i, ma in self.employees.iterrows():
+            short_term_client_experience_scores.append(ma["short_term_cl_experience"])
+        return np.mean(short_term_client_experience_scores), np.std(short_term_client_experience_scores) if short_term_client_experience_scores else (0, 1)
+    
+    def _compute_short_term_client_experience_objective(self):
+        """Objective 8: Minimize total short term client experience scores."""
+        return self.weights["short_term_client_experience"] * sum(self._compute_short_term_client_experience(i, j) for (i, j) in self.assignments)
+    
+    def _compute_short_term_client_experience(self, i, j):
+        """Compute short term client experience score for assignment (i,j)."""
+        employee = self.employees.iloc[i]
+        client_id = self.clients.iloc[j]["id"]
+        short_term_experience = json.loads(employee["short_term_cl_experience"]).get(client_id, 0)
+        return short_term_experience
+    
+    def _compute_client_experience_stats(self):
+        """Compute mean and standard deviation of client experience scores."""
+        client_experience_scores = []
+        for i, ma in self.employees.iterrows():
+            client_experience_scores.append(ma["cl_experience"])
+        return np.mean(client_experience_scores), np.std(client_experience_scores) if client_experience_scores else (0, 1)
+    
+    def _compute_school_experience_stats(self):
+        """Compute mean and standard deviation of school experience scores."""
+        school_experience_scores = []
+        for i, ma in self.employees.iterrows():
+            school_experience_scores.append(ma["school_experience"])
+        return np.mean(school_experience_scores), np.std(school_experience_scores) if school_experience_scores else (0, 1)
+
+    def _compute_client_experience_objective(self):
+        """Objective 6: Minimize total client experience scores."""
+        return self.weights["client_experience"] * sum(self._compute_client_experience(i, j) for (i, j) in self.assignments)
+
+    def _compute_client_experience(self, i, j):
+        """Compute client experience score for assignment (i,j)."""
+        employee = self.employees.iloc[i]
+        client_id = self.clients.iloc[j]["id"]
+        client_experience = json.loads(employee["cl_experience"]).get(client_id, 0)
+        return client_experience
+
+
+    def _compute_school_experience_objective(self):
+        """Objective 7: Minimize total school experience scores."""
+        return self.weights["school_experience"] * sum(self._compute_school_experience(i, j) for (i, j) in self.assignments)
+    
+    def _compute_school_experience(self, i, j):
+        """Compute school experience score for assignment (i,j)."""
+        employee = self.employees.iloc[i]
+        client_school = self.clients.iloc[j]["school"]
+        school_experience = json.loads(employee["school_experience"]).get(client_school, 0)
+        return school_experience
 
     def _compute_time_window_stats(self):
         """Compute mean and standard deviation of time window differences."""
@@ -135,6 +194,9 @@ class SoftConstrainedHandler:
             + self._compute_time_window_objective()
             + self._compute_priority_objective()
             # + self._compute_abnormality_objective()
+            + self._compute_client_experience_objective()
+            + self._compute_school_experience_objective()
+            + self._compute_short_term_client_experience_objective()
         )
         self.model.minimize(total_objective)
         return self.model

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
 import json
 import pandas as pd
@@ -11,6 +11,7 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
         "sex": [],
         "cl_experience": [],
         "school_experience": [],
+        "short_term_cl_experience": [],
         "hasCar": [],
         "timeToSchool": [],
         "availability": [],
@@ -20,10 +21,10 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
         ma_dict["qualifications"].append(get_ma_qualifications(ma))
         # TODO Implement
         ma_dict["sex"].append(None)
-        clients_experience = get_client_experience(ma["id"], clients_dict, experience_log)
-        schools_experience = get_school_experience(ma["id"], clients_dict, experience_log)
-        ma_dict["cl_experience"].append(json.dumps(clients_experience))
-        ma_dict["school_experience"].append(json.dumps(schools_experience))
+        experiences = get_experiences(ma["id"], clients_dict, experience_log)
+        ma_dict["cl_experience"].append(json.dumps(experiences["client_experience"]))
+        ma_dict["school_experience"].append(json.dumps(experiences["school_experience"]))
+        ma_dict["short_term_cl_experience"].append(json.dumps(experiences["short_term_client_experience"]))
         commute_time = create_commute_info(ma["id"], clients_dict, distances)
         ma_dict["timeToSchool"].append(json.dumps(commute_time))
         ma_dict["hasCar"].append(get_mobility(ma))        
@@ -33,20 +34,35 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
     
     return ma_df, ma_dict
 
-def _get_experience(ma_id: str, experience_log: List[Dict], experience_type: str, entity_ids: List[str]) -> Dict[str, int]:
-    """
-    Helper function to get experience counts for a given MA.
+def get_short_term_client_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[str, int]:
     
-    Args:
-        ma_id: The ID of the MA
-        experience_log: List of experience entries
-        experience_type: Type of experience ('client_experience' or 'school_experience')
-        entity_ids: List of entity IDs to check experience for
-        
-    Returns:
-        Dictionary mapping entity IDs to their experience count
-    """
-    experience_dict = {}
+    experience_dict = {}	
+    # Get the client experience data
+    experience_data = ma_experience.get("client_experience", {})
+    
+    # Calculate the date two weeks ago
+    two_weeks_ago = datetime.now() - timedelta(weeks=2)
+    
+    # Count experience for each client within the last two weeks
+    for client_id in clients_dict["id"]:
+        client_experience = experience_data.get(client_id, [])
+        if client_experience:
+            # Filter dates within last two weeks and count them
+            recent_experiences = [
+                date for date in client_experience 
+                if datetime.fromisoformat(date) >= two_weeks_ago
+            ]
+            experience_dict[client_id] = len(recent_experiences)
+    
+    return experience_dict
+    
+def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict]) -> Dict[str, int]:
+    
+    experience_dict = {
+        "client_experience": {},
+        "short_term_client_experience": {},
+        "school_experience": {}
+    }
     
     # Find MA's experience entry
     ma_experience = next(
@@ -57,55 +73,43 @@ def _get_experience(ma_id: str, experience_log: List[Dict], experience_type: str
     if not ma_experience:
         return experience_dict
     
-    # Get the specific experience type (client or school)
-    experience_data = ma_experience.get(experience_type, {})
-    
-    # Count experience for each entity
-    for entity_id in entity_ids:
-        entity_experience = experience_data.get(entity_id, [])
-        if entity_experience:
-            experience_dict[entity_id] = len(entity_experience)
+    experience_dict["client_experience"] = get_client_experience_dict(ma_experience, clients_dict)
+    experience_dict["short_term_client_experience"] = get_short_term_client_experience_dict(ma_experience, clients_dict)
+    experience_dict["school_experience"] = get_school_experience_dict(ma_experience, clients_dict)
     
     return experience_dict
 
-def get_client_experience(ma_id: str, clients_dict: Dict, experience_log: List[Dict]) -> Dict[str, int]:
-    """
-    Get the number of times an MA has worked with each client.
+def get_client_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[str, int]:
     
-    Args:
-        ma_id: The ID of the MA
-        clients_dict: Dictionary containing client information
-        experience_log: List of experience entries
-        
-    Returns:
-        Dictionary mapping client IDs to their experience count
-    """
-    return _get_experience(
-        ma_id=ma_id,
-        experience_log=experience_log,
-        experience_type="client_experience",
-        entity_ids=clients_dict["id"]
-    )
+    experience_dict = {}	
+    # Get the client experience data
+    experience_data = ma_experience.get("client_experience", {})
+    
+    # Count experience for each client
+    for client_id in clients_dict["id"]:
+        client_experience = experience_data.get(client_id, [])
+        if client_experience:
+            experience_dict[client_id] = len(client_experience)
+    
+    return experience_dict
 
-def get_school_experience(ma_id: str, clients_dict: Dict, experience_log: List[Dict]) -> Dict[str, int]:
-    """
-    Get the number of times an MA has worked at each school.
+def get_school_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[str, int]:
     
-    Args:
-        ma_id: The ID of the MA
-        clients_dict: Dictionary containing client information
-        experience_log: List of experience entries
-        
-    Returns:
-        Dictionary mapping school IDs to their experience count
-    """
-    return _get_experience(
-        ma_id=ma_id,
-        experience_log=experience_log,
-        experience_type="school_experience",
-        entity_ids=clients_dict["school"]
-    )
+    experience_dict = {}
+        # Get the school experience data
+    experience_data = ma_experience.get("school_experience", {})
     
+    # Get unique school IDs from clients
+    school_ids = set(clients_dict.get("school"))
+    
+    # Count experience for each school
+    for school_id in school_ids:
+        school_experience = experience_data.get(school_id, [])
+        if school_experience:
+            experience_dict[school_id] = len(school_experience)
+    
+    return experience_dict
+
 def get_ma_qualifications(ma):
     attributes = []
     if ma.get("kanndiabetes", 0) == 1:

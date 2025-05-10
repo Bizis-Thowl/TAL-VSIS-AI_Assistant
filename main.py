@@ -1,11 +1,11 @@
 import os
 from dotenv import load_dotenv
 import logging
-
+from datetime import datetime
 import time
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
 from fetching.experience_logging import get_experience_log
-
+from utils.add_comment import add_ai_comment
 from utils.append_to_json_file import append_to_json_file
 
 from config import update_cache, relevant_date_test
@@ -59,6 +59,8 @@ def main():
         
         vertretungen = get_vertretungen(relevant_date, user, pw, update_cache=True)
         
+        relevant_date = datetime.strptime(relevant_date, '%Y-%m-%d')
+        
         print("vertretungen: ", vertretungen)
         
         if vertretungen != old_vertretungen:
@@ -70,8 +72,9 @@ def main():
         
         mabw_records = data_processor.get_mabw_records(vertretungen)
         open_client_records = mabw_records["open_clients"]
+        rescheduled_ma_records = mabw_records["rescheduled_mas"]
 
-        ma_assignments = data_processor.get_ma_assignments(mabw_records)
+        ma_assignments = data_processor.get_ma_assignments(rescheduled_ma_records)
         assigned_mas = list(ma_assignments.keys())
         print("assigned_mas: ", assigned_mas)
         kabw_records = data_processor.get_kabw_records(vertretungen, assigned_mas)
@@ -122,7 +125,10 @@ def main():
             learner_infos = []
             for i in range(len(assigned_pairs)):
                 learner_data = learner.prepare_data(assigned_pairs[i], mas_df, clients_df)
+                print(f"learner_data: {learner_data}")
                 learner_info = learner.predict_and_score(learner_data)
+                shap_values = learner.get_explanation(learner_data)
+                add_ai_comment(recommendation_ids[i], str(shap_values))
                 learner_infos.append(learner_info)
 
             recommendation = send_update(user, pw, assigned_pairs, recommendation_ids, learner_infos, client_record_assignments)

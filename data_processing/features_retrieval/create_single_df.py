@@ -3,30 +3,38 @@ import json
 
 from utils.base_availability import base_availability
 
+feature_names = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
+
 def create_single_df(clients_df: pd.DataFrame, mas_df: pd.DataFrame, replacements: pd.DataFrame, date: str = None) -> pd.DataFrame:
     
     # Ensure the IDs in the mapping are comparable with `mas` and `clients`
     replacements = replacements.merge(mas_df, left_on="mas", right_on="id", how="inner")
     replacements = replacements.merge(clients_df, left_on="clients", right_on="id", how="inner", suffixes=("_mas", "_client"))
 
+    if len(replacements) == 0:
+        return pd.DataFrame(columns=feature_names)
+
     # Extract the relevant information
     result = replacements.apply(lambda row: create_single_row(row, date), axis=1)
+    
+    # Convert the Series of dictionaries to a DataFrame with the correct columns
+    result_df = pd.DataFrame(list(result))
 
-    # Explicitly convert to DataFrame
-    return pd.DataFrame(result.tolist())
+    return result_df
 
 def create_single_row(row: pd.Series, date: str) -> pd.Series:
-    
-    return {
+    row_dict = {
         "ma_id": row["id_mas"],
         "client_id": row["id_client"],
         "date": date,
         "timeToSchool": json.loads(row["timeToSchool"]).get(row["school"]),
         "cl_experience": json.loads(row["cl_experience"]).get(row["id_client"]),
         "school_experience": json.loads(row["school_experience"]).get(row["school"]),
+        "short_term_cl_experience": json.loads(row["short_term_cl_experience"]).get(row["id_client"]),
         "priority": row["priority"],
         "ma_availability": row["availability"] == base_availability,
         "mobility": row["hasCar"],
         "geschlecht_relevant": row["requiredSex"] != None,
         "qualifications_met": all(e in row["qualifications"] for e in row["neededQualifications"])
     }
+    return row_dict

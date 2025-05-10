@@ -12,9 +12,9 @@ from fetching.missy_fetching import (
 )
 from fetching.experience_logging import get_experience_log
 
-from core.data.data_processor import DataProcessor
-from core.data.features_retrieval.create_replacements import create_replacements
-from core.data.features_retrieval.create_single_df import create_single_df
+from data_processing.data_processor import DataProcessor
+from data_processing.features_retrieval.create_replacements import create_replacements
+from data_processing.features_retrieval.create_single_df import create_single_df
 
 from learning.model import AbnormalityModel
 
@@ -52,7 +52,7 @@ experience_log = get_experience_log()
 
 def main():
     
-    use_cache = True
+    use_cache = False
     
     full_dataset_path = "data/final_dataset.csv"
     
@@ -98,16 +98,18 @@ def main():
                 
                 replacements = create_replacements(ma_assignments)
                 single_df = create_single_df(clients_df, mas_df, replacements, current_date)
+                
 
                 if full_dataset is None:
                     full_dataset = single_df
                 else:
                     full_dataset = pd.concat([full_dataset, single_df])
+                    
                 
 
         full_dataset.to_csv(full_dataset_path, index=False)  
     
-    training_features = ["timeToSchool", "cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
+    training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
 
     non_nan_dataset = full_dataset[~full_dataset.isna().any(axis=1)]
     X_train = non_nan_dataset[training_features]

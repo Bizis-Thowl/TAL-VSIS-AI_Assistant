@@ -12,6 +12,7 @@ import pandas as pd
 from datetime import datetime
 import shap
 model_path = "models/isolation_forst.pkl"
+explainer_path = "models/explainer.pkl"
 
 
 class AbnormalityModel:
@@ -44,6 +45,11 @@ class AbnormalityModel:
                 self.model = load(f)
         else:
             self.model = IsolationForest(**default_params)
+        if use_cache and os.path.exists(explainer_path):
+            with open(explainer_path, "rb") as f:
+                self.explainer = load(f)
+        else:
+            self.explainer = None
 
     def train(self, X: np.ndarray) -> None:
         """
@@ -53,8 +59,12 @@ class AbnormalityModel:
             X: Input features (no labels needed for unsupervised learning)
         """
         self.model.fit(X)
+        self.explainer = shap.KernelExplainer(self.model.predict, X)
         with open(model_path, "wb") as f:
             dump(self.model, f, protocol=5)
+        with open(explainer_path, "wb") as f:
+            dump(self.explainer, f, protocol=5)
+        
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -145,6 +155,7 @@ class AbnormalityModel:
                 "timeToSchool",
                 "cl_experience",
                 "school_experience",
+                "short_term_cl_experience",
                 "priority",
                 "ma_availability",
                 "mobility",
@@ -183,8 +194,11 @@ class AbnormalityModel:
         g.savefig(f"models/isolation_forest_visualization_{timestamp}.png")
 
     def get_explanation(self, X: np.ndarray) -> str:
-        # Use SHAP's TreeExplainer for IsolationForest
-        explainer = shap.KernelExplainer(self.model.predict, X)
-        shap_values = explainer.shap_values(X)
+        print(f"X: {X}")
+        # Convert input to numpy array if it's a list
+        if isinstance(X, list):
+            X = np.array(X).reshape(1, -1)  # Reshape to 2D array with one row
+        # Use SHAP's KernelExplainer for IsolationForest
+        shap_values = self.explainer.shap_values(X)
         
         return shap_values

@@ -4,7 +4,7 @@ import pandas as pd
 from utils.get_weekday import get_weekday
 from utils.add_comment import add_customer_comment
 
-def aggregate_client_features(open_client_objects: List, date: str, prio_assignments: List):
+def aggregate_client_features(open_client_objects: List, date: datetime, prio_assignments: List):
     client_dict = {
         "id": [],
         "neededQualifications": [],

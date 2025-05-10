@@ -23,11 +23,11 @@ def get_free_ma_ids(free_ma_records: List, absent_client_records, mas) -> List:
     
     return open_mas
 
-def get_ma_assignments(records: List) -> Dict[str, str]:
+def get_ma_assignments(rescheduled_ma_records: List) -> Dict[str, str]:
     
     replaced_mas = {}
     
-    for record in records:
+    for record in rescheduled_ma_records:
         replaced_mas[record["mavertretend"]["id"]] = record["klientzubegleiten"]["id"] 
     
     return replaced_mas
