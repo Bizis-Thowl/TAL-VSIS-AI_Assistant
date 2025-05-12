@@ -5,7 +5,7 @@ from datetime import datetime
 import time
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
 from fetching.experience_logging import get_experience_log
-from utils.add_comment import add_ai_comment
+from utils.add_comment import add_abnormality_comment
 from utils.append_to_json_file import append_to_json_file
 
 from config import update_cache, relevant_date_test
@@ -21,6 +21,9 @@ from learning.model import AbnormalityModel
 from learning.LearningHandler import LearningHandler
 from utils.assignment_alternatives import collect_alternatives
 from utils.send_update import send_update
+
+from config import training_features_de
+
 # load .env file to environment
 load_dotenv(override=True)
 
@@ -100,9 +103,6 @@ def main():
         
         clients_df, mas_df = data_processor.create_day_dataset(open_client_ids, free_ma_ids, relevant_date)
         
-        print(clients_df)
-        print(mas_df)
-        
         abnormality_model = AbnormalityModel()
         
         optimizer = Optimizer(mas_df, clients_df, abnormality_model)
@@ -128,7 +128,8 @@ def main():
                 print(f"learner_data: {learner_data}")
                 learner_info = learner.predict_and_score(learner_data)
                 shap_values = learner.get_explanation(learner_data)
-                add_ai_comment(recommendation_ids[i], str(shap_values))
+                if learner_info[0] == 1: # assignment is abnormal
+                    add_abnormality_comment(recommendation_ids[i], shap_values, learner_data[0], training_features_de)
                 learner_infos.append(learner_info)
 
             recommendation = send_update(user, pw, assigned_pairs, recommendation_ids, learner_infos, client_record_assignments)

@@ -10,3 +10,7 @@ log_store = "store"
 update_cache = True
 
 relevant_date_test = "2025-01-10"
+
+training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
+
+training_features_de = ["Zeit bis zur Schule", "Kundenbeziehung", "Kundenbeziehung kurzfristig", "Schulbeziehung", "Priorität", "MA-Verfügbarkeit", "Mobilität", "Geschlecht relevant", "Qualifikationen erfüllt"]

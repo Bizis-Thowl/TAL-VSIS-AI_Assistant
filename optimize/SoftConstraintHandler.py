@@ -1,11 +1,11 @@
 import numpy as np
 import json
-
+from learning.model import AbnormalityModel 
 # To ensure that the minimized value is high and can be converted to ints for using it to set constraints
 scaling_factor = 1000000
 
 class SoftConstrainedHandler:
-    def __init__(self, employees, clients, assignments, unassigned_clients, model, learner_dataset, abnormality_model, weights=None):
+    def __init__(self, employees, clients, assignments, unassigned_clients, model, learner_dataset, abnormality_model: AbnormalityModel, weights=None):
         self.employees = employees
         self.clients = clients
         self.assignments = assignments
@@ -44,7 +44,11 @@ class SoftConstrainedHandler:
         """Compute abnormality of employee-client pair."""
         pair_features = self.learner_dataset[(i, j)]
         
-        score = self.abnormality_model.predict(pair_features)
+        print("pair_features: ", pair_features)
+        datapoint = list(pair_features.values())
+        print("datapoint: ", datapoint)
+        
+        score = self.abnormality_model.score_samples([datapoint])[0]
         
         int_score = int(round(score * scaling_factor))
         print("int_score: ", int_score)
@@ -193,7 +197,7 @@ class SoftConstrainedHandler:
             + self._compute_travel_time_objective()
             + self._compute_time_window_objective()
             + self._compute_priority_objective()
-            # + self._compute_abnormality_objective()
+            + self._compute_abnormality_objective()
             + self._compute_client_experience_objective()
             + self._compute_school_experience_objective()
             + self._compute_short_term_client_experience_objective()

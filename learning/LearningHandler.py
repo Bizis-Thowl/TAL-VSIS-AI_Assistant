@@ -6,8 +6,6 @@ from utils.base_availability import base_availability
 
 import json
 
-features_names = ["timeToSchool", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
-
 class LearningHandler:
     
     def __init__(self, abnormality_model: AbnormalityModel):
@@ -22,7 +20,7 @@ class LearningHandler:
     
     def get_explanation(self, datapoint: List[List]) -> List[List]:
         shap_values = self.abnormality_model.get_explanation(datapoint[0])
-        return shap_values
+        return shap_values[0]
 
     def prepare_data(self, assignment: Dict, employees: pd.DataFrame, clients: pd.DataFrame) -> List[List] | None:
         
@@ -62,5 +60,7 @@ class LearningHandler:
             "geschlecht_relevant": client["requiredSex"] != None,
             "qualifications_met": qualifications_met
         }
+        
+        print("combined_data: ", combined_data)
         
         return [list(combined_data.values())]

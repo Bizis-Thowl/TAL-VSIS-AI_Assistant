@@ -22,7 +22,7 @@ from utils.daterange import daterange
 from utils.min_max_date import min_max_date
 from utils.read_file import read_file
 
-from config import update_cache
+from config import update_cache, training_features
 import os
 from dotenv import load_dotenv
 
@@ -108,8 +108,6 @@ def main():
                 
 
         full_dataset.to_csv(full_dataset_path, index=False)  
-    
-    training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
 
     non_nan_dataset = full_dataset[~full_dataset.isna().any(axis=1)]
     X_train = non_nan_dataset[training_features]

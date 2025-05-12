@@ -171,6 +171,7 @@ class Optimizer:
         return {
             "timeToSchool": json.loads(emp["timeToSchool"]).get(client["school"]),
             "cl_experience": json.loads(emp["cl_experience"]).get(client["id"]),
+            "short_term_cl_experience": json.loads(emp["short_term_cl_experience"]).get(client["id"]),
             "school_experience": json.loads(emp["school_experience"]).get(client["school"]),
             "priority": client["priority"],
             "ma_availability": emp["availability"] == base_availability,
