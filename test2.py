@@ -16,12 +16,11 @@ OUTPUT_FILE = "data/experience_log.json"  # Where the adapted list is saved
 
 if __name__ == "__main__":
     
-    start_date = date(2024, 10, 1)
+    start_date = date(2025, 2, 20)
     end_date = date.today()
     endpoint_key = 'vertretungsfall'
     
     vertretungen = fetch_date_objects_in_range(user, pw, endpoint_key, start_date, end_date)
     
-    # for date in daterange(start_date, end_date):
-    #     today = date.strftime("%Y-%m-%d")
-    #     process_data_for_date(vertretungen, today, OUTPUT_FILE)
+    for date in daterange(start_date, end_date):
+        process_data_for_date(vertretungen, date, OUTPUT_FILE)

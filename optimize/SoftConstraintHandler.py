@@ -44,14 +44,11 @@ class SoftConstrainedHandler:
         """Compute abnormality of employee-client pair."""
         pair_features = self.learner_dataset[(i, j)]
         
-        print("pair_features: ", pair_features)
         datapoint = list(pair_features.values())
-        print("datapoint: ", datapoint)
         
         score = self.abnormality_model.score_samples([datapoint])[0]
         
         int_score = int(round(score * scaling_factor))
-        print("int_score: ", int_score)
         # return negative score to minimize
         return -int_score
     
@@ -197,7 +194,7 @@ class SoftConstrainedHandler:
             + self._compute_travel_time_objective()
             + self._compute_time_window_objective()
             + self._compute_priority_objective()
-            + self._compute_abnormality_objective()
+            # + self._compute_abnormality_objective()
             + self._compute_client_experience_objective()
             + self._compute_school_experience_objective()
             + self._compute_short_term_client_experience_objective()

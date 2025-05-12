@@ -91,7 +91,9 @@ def _update_experience_maps(
 
 def process_data_for_date(data: List[Dict], target_date: datetime, output_path: str) -> None:
     """Process assignments for a specific date and update experience logs."""
-    print(f"Processing assignments for date: {target_date}")
+    
+    date_str = target_date.strftime("%Y-%m-%d")
+    print(f"Processing assignments for date: {date_str}")
     experience_list = load_json_file(output_path)
     ma_experience_map, ma_school_experience_map = _initialize_experience_maps(experience_list)
 
@@ -113,7 +115,6 @@ def process_data_for_date(data: List[Dict], target_date: datetime, output_path: 
             continue
             
         school_id = client_object["schule"]["id"]
-        target_date_str = target_date.strftime("%Y-%m-%d")
 
         _update_experience_maps(
             ma_experience_map,
@@ -121,7 +122,7 @@ def process_data_for_date(data: List[Dict], target_date: datetime, output_path: 
             ma_id,
             client_id,
             school_id,
-            target_date_str
+            date_str
         )
 
     # Rebuild and save the experience list
