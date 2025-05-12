@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from utils.add_comment import add_employee_comment
 
-def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict, experience_log: List) -> Tuple[pd.DataFrame, Dict]:
+def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict, experience_log: List, date: str) -> Tuple[pd.DataFrame, Dict]:
     ma_dict = {
         "id": [],
         "qualifications": [],
@@ -21,7 +21,7 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
         ma_dict["qualifications"].append(get_ma_qualifications(ma))
         # TODO Implement
         ma_dict["sex"].append(None)
-        experiences = get_experiences(ma["id"], clients_dict, experience_log)
+        experiences = get_experiences(ma["id"], clients_dict, experience_log, date)
         ma_dict["cl_experience"].append(json.dumps(experiences["client_experience"]))
         ma_dict["school_experience"].append(json.dumps(experiences["school_experience"]))
         ma_dict["short_term_cl_experience"].append(json.dumps(experiences["short_term_client_experience"]))
@@ -34,14 +34,14 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
     
     return ma_df, ma_dict
 
-def get_short_term_client_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[str, int]:
+def get_short_term_client_experience_dict(ma_experience: Dict, clients_dict: Dict, date: str) -> Dict[str, int]:
     
     experience_dict = {}	
     # Get the client experience data
     experience_data = ma_experience.get("client_experience", {})
     
     # Calculate the date two weeks ago
-    two_weeks_ago = datetime.now() - timedelta(weeks=2)
+    two_weeks_ago = datetime.strptime(date, "%Y-%m-%d") - timedelta(weeks=2)
     
     # Count experience for each client within the last two weeks
     for client_id in clients_dict["id"]:
@@ -56,7 +56,7 @@ def get_short_term_client_experience_dict(ma_experience: Dict, clients_dict: Dic
     
     return experience_dict
     
-def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict]) -> Dict[str, int]:
+def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict], date: str) -> Dict[str, int]:
     
     experience_dict = {
         "client_experience": {},
@@ -74,7 +74,7 @@ def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict]) 
         return experience_dict
     
     experience_dict["client_experience"] = get_client_experience_dict(ma_experience, clients_dict)
-    experience_dict["short_term_client_experience"] = get_short_term_client_experience_dict(ma_experience, clients_dict)
+    experience_dict["short_term_client_experience"] = get_short_term_client_experience_dict(ma_experience, clients_dict, date)
     experience_dict["school_experience"] = get_school_experience_dict(ma_experience, clients_dict)
     
     return experience_dict

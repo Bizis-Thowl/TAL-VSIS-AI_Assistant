@@ -72,6 +72,7 @@ def create_comparison_plots(my_dict):
     plt.tight_layout()
     plt.show()
 
+
 def create_time_series_plots(comparison):
     # Get all keys that end with '_labels' or '_recommendations'
     keys = [k.replace('_labels', '') for k in comparison[0].keys() 
@@ -79,7 +80,7 @@ def create_time_series_plots(comparison):
     
     # Create a figure with subplots
     n_keys = len(keys)
-    fig, axes = plt.subplots(n_keys, 1, figsize=(12, 5*n_keys))
+    fig, axes = plt.subplots(n_keys, 1, figsize=(15, 5*n_keys))
     if n_keys == 1:
         axes = [axes]
     
@@ -89,23 +90,69 @@ def create_time_series_plots(comparison):
     
     # Create line plots for each key
     for idx, key in enumerate(keys):
-        # Extract means for labels and recommendations
-        labels_means = [entry[f"{key}_labels"]["mean"] for entry in comparison]
-        recommendations_means = [entry[f"{key}_recommendations"]["mean"] for entry in comparison]
+        # Extract all statistics for labels and recommendations
+        labels_data = {
+            'mean': [entry[f"{key}_labels"]["mean"] for entry in comparison],
+            'median': [entry[f"{key}_labels"]["median"] for entry in comparison],
+            'min': [entry[f"{key}_labels"]["min"] for entry in comparison],
+            'max': [entry[f"{key}_labels"]["max"] for entry in comparison],
+            'std': [entry[f"{key}_labels"]["std"] for entry in comparison]
+        }
         
-        # Create line plot
-        axes[idx].plot(dates, labels_means, 'b-', label='Labels', marker='o')
-        axes[idx].plot(dates, recommendations_means, 'r-', label='Recommendations', marker='s')
+        recommendations_data = {
+            'mean': [entry[f"{key}_recommendations"]["mean"] for entry in comparison],
+            'median': [entry[f"{key}_recommendations"]["median"] for entry in comparison],
+            'min': [entry[f"{key}_recommendations"]["min"] for entry in comparison],
+            'max': [entry[f"{key}_recommendations"]["max"] for entry in comparison],
+            'std': [entry[f"{key}_recommendations"]["std"] for entry in comparison]
+        }
+        
+        # Create box plot data
+        labels_box_data = []
+        recommendations_box_data = []
+        for i in range(len(dates)):
+            # Create box plot data using min, max, median, and quartiles
+            labels_box_data.append([
+                labels_data['min'][i],
+                labels_data['median'][i] - labels_data['std'][i],
+                labels_data['median'][i],
+                labels_data['median'][i] + labels_data['std'][i],
+                labels_data['max'][i]
+            ])
+            recommendations_box_data.append([
+                recommendations_data['min'][i],
+                recommendations_data['median'][i] - recommendations_data['std'][i],
+                recommendations_data['median'][i],
+                recommendations_data['median'][i] + recommendations_data['std'][i],
+                recommendations_data['max'][i]
+            ])
+        
+        # Create line plot with box plots
+        axes[idx].plot(range(len(dates)), labels_data['mean'], 'b-', label='Labels Mean', marker='o', alpha=0.7)
+        axes[idx].plot(range(len(dates)), recommendations_data['mean'], 'r-', label='Recommendations Mean', marker='s', alpha=0.7)
+        
+        # Add box plots
+        for i in range(len(dates)):
+            # Labels box plot
+            axes[idx].boxplot([labels_box_data[i]], positions=[i], widths=0.3,
+                            patch_artist=True, boxprops=dict(facecolor='blue', alpha=0.1))
+            # Recommendations box plot
+            axes[idx].boxplot([recommendations_box_data[i]], positions=[i], widths=0.3,
+                            patch_artist=True, boxprops=dict(facecolor='red', alpha=0.1))
         
         # Customize plot
-        axes[idx].set_title(f'Time Series of {key} Means')
+        axes[idx].set_title(f'Time Series of {key} with Distribution')
         axes[idx].set_xlabel('Date')
-        axes[idx].set_ylabel('Mean Value')
+        axes[idx].set_ylabel('Value')
         axes[idx].legend()
         axes[idx].grid(True)
         
-        # Rotate x-axis labels for better readability
-        plt.setp(axes[idx].get_xticklabels(), rotation=45, ha='right')
+        # Set x-axis ticks to dates
+        axes[idx].set_xticks(range(len(dates)))
+        axes[idx].set_xticklabels(dates, rotation=45, ha='right')
+        
+        # Add some padding to prevent box plots from being cut off
+        axes[idx].margins(x=0.1)
     
     plt.tight_layout()
     plt.show()

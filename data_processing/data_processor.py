@@ -45,7 +45,7 @@ class DataProcessor:
             open_client_objects, date, self.prio_assignments
         )
         mas_df, mas_dict = aggregate_ma_features(
-            free_ma_objects, self.distances, clients_dict, self.experience_log
+            free_ma_objects, self.distances, clients_dict, self.experience_log, date.strftime("%Y-%m-%d")
         )
         
         return clients_df, mas_df
