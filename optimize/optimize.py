@@ -5,9 +5,10 @@ from optimize.utils.has_required_qualifications import has_required_qualificatio
 from optimize.SoftConstraintHandler import SoftConstrainedHandler
 import logging
 from utils.append_to_json_file import append_to_json_file
-from utils.add_comment import add_ai_comment
+from utils.add_comment import add_ai_comment, add_employee_comment, add_customer_comment
 import uuid
 from typing import Dict
+from datetime import datetime
 from utils.base_availability import base_availability
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class Optimizer:
         for j in range(len(self.clients)):
             self.model += [self.unassigned_clients[j] == 1 - sum(self.assignments[(i, j)] for i in range(len(self.employees)) if (i, j) in self.assignments)]
 
-        soft_constrained_handler = SoftConstrainedHandler(self.employees, self.clients, self.assignments, self.unassigned_clients, self.model, self.learner_dataset, self.abnormality_model)
+        soft_constrained_handler = SoftConstrainedHandler(self.employees, self.clients, self.assignments, self.unassigned_clients, self.model, self.abnormality_model)
         self.model = soft_constrained_handler.set_up_objectives()
 
         # Constraints: Each employee and client can only be assigned once
@@ -145,7 +146,7 @@ class Optimizer:
         
         if len(assigned_pairs) > 0:
             add_ai_comment(recommendation_id, f"Ø Luftlinie: {(store_dict['avg_travel_time'] / 1000):.2f} km")
-            add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']:.2f}")
+            # add_ai_comment(recommendation_id, f"Ø Prio: {store_dict['avg_priority']:.2f}")
         else:
             add_ai_comment(recommendation_id, "Keine Zuordnungen gefunden.")
         
@@ -167,6 +168,12 @@ class Optimizer:
         """
         emp = self.employees.iloc[emp_idx]
         client = self.clients.iloc[client_idx]
+        
+        # convert emp["available_until"] to a human readable format, such as 01.01.2025
+        available_until_ma = datetime.strptime(emp["available_until"], "%Y-%m-%d")
+        available_until_client = datetime.strptime(client["available_until"], "%Y-%m-%d")
+        add_employee_comment(emp["id"], f"Mitarbeiter frei bis: {available_until_ma.strftime('%d.%m.%Y')}")
+        add_customer_comment(client["id"], f"Klient zu vertreten bis: {available_until_client.strftime('%d.%m.%Y')}")
         
         return {
             "timeToSchool": json.loads(emp["timeToSchool"]).get(client["school"]),

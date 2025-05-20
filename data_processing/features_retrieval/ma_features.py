@@ -132,10 +132,14 @@ def get_ma_availability(ma):
         return (start_as_float, end_as_float)
 
 def prepare_distances(distances, ma_id):
+    
+    test_ma = "7c1bea51-21ba-4d24-9b91-98287bfabb7c"
     # Preprocess the distances into a dictionary for faster lookups
     distance_dict = {}
     for distance in distances:
         if distance["mitarbeiterin"]["id"] == ma_id:
+            if ma_id == test_ma:
+                print(distance)
             school_id = distance["schule"]["id"]
             if school_id not in distance_dict:
                 distance_dict[school_id] = distance
@@ -145,7 +149,7 @@ def prepare_distances(distances, ma_id):
 def create_commute_info(ma_id: str, clients: dict, distances: list):
     # Preprocess the distances into a dictionary for faster lookups
     distance_dict = prepare_distances(distances, ma_id)
-
+    
     # Build the result using the preprocessed dictionary
     result = {}
     for school_id in clients["school"]:
@@ -157,11 +161,11 @@ def create_commute_info(ma_id: str, clients: dict, distances: list):
             if dist is not None and dist < 60000:
                 result[school_prefix] = dist
 
-    if len(result) == 0:
-        add_employee_comment(ma_id, "Es gibt keine Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
+    # if len(result) == 0:
+    #     add_employee_comment(ma_id, "Es gibt keine Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
         
-    if len(result) == 1:
-        add_employee_comment(ma_id, "Es gibt nur einen Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
+    # if len(result) == 1:
+    #     add_employee_comment(ma_id, "Es gibt nur einen Klienten im Einzugsgebiet des Mitarbeiters (< 60 km)")
 
     return result
 

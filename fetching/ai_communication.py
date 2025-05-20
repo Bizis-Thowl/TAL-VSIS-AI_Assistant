@@ -26,12 +26,12 @@ def update_recommendation(
         dict: Response from the web service.
     """
     
-    if recommendations:
-        for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
-            if len(erklaerungkurz) > 200:
-                raise ValueError(f"erklaerungvorschlagkurz{i} must be 200 characters or fewer.")
-            if len(erklaerung) > 8000:
-                raise ValueError(f"erklaerungvorschlag{i} must be 8000 characters or fewer.")
+    # if recommendations:
+    #     for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
+    #         if len(erklaerungkurz) > 200:
+    #             raise ValueError(f"erklaerungvorschlagkurz{i} must be 200 characters or fewer.")
+    #         if len(erklaerung) > 8000:
+    #             raise ValueError(f"erklaerungvorschlag{i} must be 8000 characters or fewer.")
 
     # Construct the URL
     url = f"{base_url_ai}{endpoint}"
@@ -42,13 +42,13 @@ def update_recommendation(
 
     for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
         payload[f"mavertretendvorschlag{i}"] = mavertretend
-        payload[f"erklaerungvorschlagkurz{i}"] = erklaerungkurz
-        payload[f"erklaerungvorschlag{i}"] = erklaerung
+        payload[f"erklaerungvorschlagkurz{i}"] = erklaerungkurz[:199]
+        payload[f"erklaerungvorschlag{i}"] = erklaerung[:7999]
 
     
     token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
     
-    print(token)
+    print(payload)
     
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',

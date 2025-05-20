@@ -9,7 +9,7 @@ log_store = "store"
 
 update_cache = False
 
-relevant_date_test = "2025-01-10"
+relevant_date_test = "2025-04-11"
 
 training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
 

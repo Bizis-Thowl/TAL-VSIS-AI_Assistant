@@ -8,6 +8,8 @@ employee_comments = defaultdict(list)
 employee_customer_comments = defaultdict(list)
 ai_comments = defaultdict(list)
 
+relevant_features = ["Zeit bis zur Schule", "Kundenbeziehung", "Kundenbeziehung kurzfristig", "Schulbeziehung", "Priorität", "Mobilität"]
+
         
 def add_employee_comment(employee_id, comment):
     employee_comments[employee_id].append(comment)
@@ -41,15 +43,20 @@ def add_abnormality_comment(recommendation_id, shap_values, datapoint, feature_n
     
     comment = ""
     for i in range(len(top_features)):
+        feature = top_features[i]
+        if feature not in relevant_features:
+            continue
         value = top_values[i]
         # if the value is a boolean, convert it to Ja (True) or Nein (False)
         if isinstance(value, bool):
-            value = "Ja" if value else "Nein"
-        comment += f"{top_features[i]}: {value} \n"
+            value = "Auto" if value else "Kein Auto"
+        if value is None:
+            value = "Keine Erfahrung"
+        comment += f"{feature}: {value} \n"
     
     comment = f"Diese Empfehlung ist eher unüblich. Folgende Faktoren sind dafür ausschlaggebend: {comment}"
     
-    add_ai_comment(recommendation_id, comment)
+    # add_ai_comment(recommendation_id, comment)
     
 def reset_comments():
     employee_comments.clear()
@@ -58,13 +65,13 @@ def reset_comments():
     employee_customer_comments.clear()
     
 def get_customer_comments(customer_id):
-    return customer_comments[customer_id]
+    return customer_comments[customer_id][:1]
 
 def get_employee_comments(employee_id):
-    return employee_comments[employee_id]
+    return employee_comments[employee_id][:1]
 
 def get_ai_comments(recommendation_id):
-    return ai_comments[recommendation_id]
+    return ai_comments[recommendation_id][:3]
 
 def get_employee_customer_comment(employee_id, customer_id):
     return employee_customer_comments[f"{employee_id}{customer_id}"][:5]

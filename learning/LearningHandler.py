@@ -45,9 +45,9 @@ class LearningHandler:
         short_term_cl_experience = json.loads(emp["short_term_cl_experience"]).get(client["id"])
 
         add_employee_customer_comment(m_id, c_id, "Mit Auto" if emp["hasCar"] else "Ohne Auto")
-        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient: {cl_experience}")
-        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Schule: {school_experience}")
-        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient in letzter Woche: {short_term_cl_experience}")
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient: {cl_experience if cl_experience is not None else 'Keine'}")
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Schule: {school_experience if school_experience is not None else 'Keine'}")
+        add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient in letzter Woche: {short_term_cl_experience if short_term_cl_experience is not None else 'Keine'}")
 
         combined_data = {
             "timeToSchool": time_to_school,

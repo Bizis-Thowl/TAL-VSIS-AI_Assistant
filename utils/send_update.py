@@ -7,7 +7,6 @@ def send_update(
     pw: str,
     assigned_pairs: List[List],
     recommendation_ids: List[str],
-    learner_infos: List[Tuple[int, float]],
     client_record_assignments: Dict[str, str],
 ) -> Dict:
 
@@ -26,10 +25,10 @@ def send_update(
         ma_ids.append(ma_id)
         print(f"Client ID: {client_id}")
         incident_id = client_record_assignments[client_id]
-        expl_short = create_short_explanation(recommendation_ids[i], learner_infos[i])
+        expl_short = create_short_explanation(recommendation_ids[i])
         expl_shorts.append(expl_short)
         expl = create_explanation(
-            ma_id, client_id, recommendation_ids[i], learner_infos[i]
+            ma_id, client_id, recommendation_ids[i]
         )
         expls.append(expl)
     out = update_recommendation(
@@ -44,3 +43,8 @@ def send_update(
     }
     print(out)
     return user_recommendation
+
+
+def send_empty_update(user: str, pw: str, incident_id: str):
+    out = update_recommendation(user, pw, incident_id, [])
+    return out

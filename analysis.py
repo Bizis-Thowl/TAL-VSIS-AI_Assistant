@@ -134,10 +134,10 @@ def create_time_series_plots(comparison):
         # Add box plots
         for i in range(len(dates)):
             # Labels box plot
-            axes[idx].boxplot([labels_box_data[i]], positions=[i], widths=0.3,
+            axes[idx].boxplot([labels_box_data[i]], positions=[i-0.2], widths=0.3,
                             patch_artist=True, boxprops=dict(facecolor='blue', alpha=0.1))
             # Recommendations box plot
-            axes[idx].boxplot([recommendations_box_data[i]], positions=[i], widths=0.3,
+            axes[idx].boxplot([recommendations_box_data[i]], positions=[i+0.2], widths=0.3,
                             patch_artist=True, boxprops=dict(facecolor='red', alpha=0.1))
         
         # Customize plot

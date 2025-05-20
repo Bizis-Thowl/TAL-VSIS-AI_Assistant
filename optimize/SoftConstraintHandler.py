@@ -5,7 +5,7 @@ from learning.model import AbnormalityModel
 scaling_factor = 1000000
 
 class SoftConstrainedHandler:
-    def __init__(self, employees, clients, assignments, unassigned_clients, model, learner_dataset, abnormality_model: AbnormalityModel, weights=None):
+    def __init__(self, employees, clients, assignments, unassigned_clients, model, abnormality_model: AbnormalityModel, learner_dataset=None, weights=None):
         self.employees = employees
         self.clients = clients
         self.assignments = assignments
@@ -27,7 +27,7 @@ class SoftConstrainedHandler:
             "abnormality": 200,
             "client_experience": 100,
             "school_experience": 100,
-            "short_term_client_experience": 100
+            "short_term_client_experience": 300
         }
 
     def _compute_travel_time_stats(self):
