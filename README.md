@@ -3,7 +3,7 @@
 
 ### Install UV for Virtual Environment (Recommended)
 
-Full installation instructions: https://docs.astral.sh/uv/getting-started/installation/#standalone-installer
+Full installation instructions for UV: https://docs.astral.sh/uv/getting-started/installation/#standalone-installer
 
 ``curl -LsSf https://astral.sh/uv/install.sh | sh``
 
@@ -19,10 +19,8 @@ Full installation instructions: https://docs.astral.sh/uv/getting-started/instal
 
 ``cd TAL-VSIS-AI_Assistant``\
 ``uv venv .venv``\
-``source .venv/bin/activate``
-```
-
-```
+``source .venv/bin/activate``\
+``uv pip install -r requirements``
 
 ### Setup config and .env
 
