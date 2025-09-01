@@ -4,6 +4,8 @@ from learning.model import AbnormalityModel
 # To ensure that the minimized value is high and can be converted to ints for using it to set constraints
 scaling_factor = 1000000
 
+from config import include_abnormality
+
 class SoftConstrainedHandler:
     def __init__(self, employees, clients, assignments, unassigned_clients, model, abnormality_model: AbnormalityModel, learner_dataset=None, weights=None):
         self.employees = employees
@@ -194,10 +196,11 @@ class SoftConstrainedHandler:
             + self._compute_travel_time_objective()
             + self._compute_time_window_objective()
             + self._compute_priority_objective()
-            # + self._compute_abnormality_objective()
             + self._compute_client_experience_objective()
             + self._compute_school_experience_objective()
             + self._compute_short_term_client_experience_objective()
         )
+        if include_abnormality:
+            total_objective += self._compute_abnormality_objective()
         self.model.minimize(total_objective)
         return self.model

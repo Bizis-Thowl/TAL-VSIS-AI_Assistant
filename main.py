@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
 from fetching.experience_logging import get_experience_log
@@ -22,7 +22,7 @@ from learning.LearningHandler import LearningHandler
 from utils.assignment_alternatives import collect_alternatives
 from utils.send_update import send_update, send_empty_update
 
-from config import training_features_de
+from config import training_features_de, include_abnormality
 
 # load .env file to environment
 load_dotenv(override=True)
@@ -51,14 +51,15 @@ def main():
     
     while True:
         
-        relevant_date = relevant_date_test
-        
-        # today = datetime.today()
-        # if today.hour >= 10 and today.minute >= 30:
-        #     tomorrow = today + timedelta(days=1)
-        #     relevant_date = tomorrow.strftime('%Y-%m-%d')
-        # else:
-        #     relevant_date = today.strftime('%Y-%m-%d')
+        if relevant_date_test:
+            relevant_date = relevant_date_test
+        else:
+            today = datetime.today()
+            if today.hour >= 10 and today.minute >= 30:
+                tomorrow = today + timedelta(days=1)
+                relevant_date = tomorrow.strftime('%Y-%m-%d')
+            else:
+                relevant_date = today.strftime('%Y-%m-%d')
         
         vertretungen = get_vertretungen(relevant_date, user, pw, update_cache=True)
         
@@ -127,6 +128,8 @@ def main():
         recommendation_ids = []
         for _ in range(3):
             objective_value = optimizer.solve_model(objective_value)
+            if objective_value is None:
+                break
             objective_value = int(objective_value * 1.10) # increase objective value by 10%
             assigned_pairs, recommendation_id = optimizer.process_results()
             assigned_pairs_list.append(assigned_pairs)
@@ -135,15 +138,16 @@ def main():
         transposed_pair_list = collect_alternatives(assigned_pairs_list)
         recommendations = []
         for assigned_pairs in transposed_pair_list:
-            learner_infos = []
-            for i in range(len(assigned_pairs)):
-                learner_data = learner.prepare_data(assigned_pairs[i], mas_df, clients_df)
-            #     print(f"learner_data: {learner_data}")
-            #     learner_info = learner.predict_and_score(learner_data)
-            #     shap_values = learner.get_explanation(learner_data)
-            #     if learner_info[0] == 1: # assignment is abnormal
-            #         add_abnormality_comment(recommendation_ids[i], shap_values, learner_data[0], training_features_de)
-            #     learner_infos.append(learner_info)
+            if include_abnormality:
+                learner_infos = []
+                for i in range(len(assigned_pairs)):
+                    learner_data = learner.prepare_data(assigned_pairs[i], mas_df, clients_df)
+                    print(f"learner_data: {learner_data}")
+                    learner_info = learner.predict_and_score(learner_data)
+                    shap_values = learner.get_explanation(learner_data)
+                    if learner_info[0] == 1: # assignment is abnormal
+                        add_abnormality_comment(recommendation_ids[i], shap_values, learner_data[0], training_features_de)
+                    learner_infos.append(learner_info)
 
             recommendation = send_update(user, pw, assigned_pairs, recommendation_ids, client_record_assignments)
             

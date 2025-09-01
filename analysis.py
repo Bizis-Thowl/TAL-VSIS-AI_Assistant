@@ -216,8 +216,8 @@ def main():
         single_df_labels = create_single_df(clients_df, mas_df, replacements, relevant_date)
         single_df_recommendations = create_single_df(clients_df, mas_df, replacement_recommendations, relevant_date)
 
-        print(f"Labels: {single_df_labels.describe()}")
-        print(f"Recommendations: {single_df_recommendations.describe()}")
+        print(f"Labels: {single_df_labels['qualifications_met']}")
+        # print(f"Recommendations: {single_df_recommendations.describe()}")
         
         # Create a dictionary that retrieves entries from the describe function
         description_labels = single_df_labels.describe().to_dict()

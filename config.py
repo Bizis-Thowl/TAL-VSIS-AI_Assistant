@@ -8,7 +8,9 @@ base_url_ai = f"https://{system_spec}.evabrain.de/webservice-2/"
 log_store = "store"
 
 update_cache = False
+include_abnormality = False
 
+# Set to False for a live test today
 relevant_date_test = "2025-04-11"
 
 training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
