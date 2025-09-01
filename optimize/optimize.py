@@ -52,7 +52,7 @@ class Optimizer:
         for j in range(len(self.clients)):
             self.model += [self.unassigned_clients[j] == 1 - sum(self.assignments[(i, j)] for i in range(len(self.employees)) if (i, j) in self.assignments)]
 
-        soft_constrained_handler = SoftConstrainedHandler(self.employees, self.clients, self.assignments, self.unassigned_clients, self.model, self.abnormality_model)
+        soft_constrained_handler = SoftConstrainedHandler(self.employees, self.clients, self.assignments, self.unassigned_clients, self.model, self.abnormality_model, self.learner_dataset)
         self.model = soft_constrained_handler.set_up_objectives()
 
         # Constraints: Each employee and client can only be assigned once

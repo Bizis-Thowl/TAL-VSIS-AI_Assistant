@@ -131,8 +131,8 @@ def main():
     
     print(f"shap_values: {shap_values}")
     
-    shap.initjs()
-    shap.force_plot(explainer.expected_value, shap_values, test_row)
+    # shap.initjs()
+    # shap.force_plot(explainer.expected_value, shap_values, test_row)
 
 if __name__ == "__main__":
     main()

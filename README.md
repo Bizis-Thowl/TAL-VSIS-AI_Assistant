@@ -45,11 +45,19 @@ There is a file called `.env_example` create a copy of it and name it `.env`. Th
 
 ### Store and Update Necessary Data
 
+To save all vertretungsfälle from a starting date (The date in the script must be adapted as needed. Currently defaults to 20.02.25) to the current date:
 ```
-    # to save vertretungsfälle from a starting date (The date in the script must be adapted as needed. Currently defaults to 20.05.25)
-    python test2.py
-    # extract necessary information from the vertretungsfälle and prepare the data to be used in the main script
-    python update_ma_client_history.py
+python test2.py
+```
+Extract necessary information from the vertretungsfälle and prepare the data to be used in the main script:
+```
+python update_ma_client_history.py
+```
+
+### Train Machine Learning Model (iForest)
+
+```
+python train_iforest.py
 ```
 
 ## Running the Code
