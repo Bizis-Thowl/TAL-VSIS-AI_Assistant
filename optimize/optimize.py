@@ -92,7 +92,7 @@ class Optimizer:
 
     def solve_model(self, min_objective_value = None):
         print(f"min objective: {min_objective_value}")
-        if (min_objective_value != None and self.model.objective_ != None):
+        if (min_objective_value != None):
             # self.model = cp.Model(self.model.constraints)
             self.model += (self.model.objective_ >  min_objective_value)
         if self.model.solve(solver="ortools"):
