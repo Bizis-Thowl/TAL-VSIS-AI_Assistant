@@ -60,6 +60,14 @@ python update_ma_client_history.py
 python train_iforest.py
 ```
 
-## Running the Code
+## Running the Code (Continuously)
 
-Entrypoint: ./main.py
+```
+python main.py
+```
+
+## Bonus
+
+### Analysis
+
+To run a basic data analysis you can run the jupyter notebook `analysis.ipynb`. The file `analysis.py` contains further methods that can be used and adapted in the notebook, as well as extended for deeper and broader data analysis.
