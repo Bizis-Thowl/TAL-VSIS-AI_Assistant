@@ -53,6 +53,7 @@ def main():
         
         if relevant_date_test:
             relevant_date = relevant_date_test
+        # If no relevant date is set, set it based on cutoff time 10:30
         else:
             today = datetime.today()
             if today.hour >= 10 and today.minute >= 30:
