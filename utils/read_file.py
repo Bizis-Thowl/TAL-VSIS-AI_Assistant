@@ -8,7 +8,7 @@ def read_file(filename: str) -> dict | None:
             # Reading from json file
             output = json.load(openfile)
         return output
-    except PermissionError:
+    except (PermissionError, FileNotFoundError):
         return None
     
     

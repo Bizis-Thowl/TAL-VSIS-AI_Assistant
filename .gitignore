@@ -183,3 +183,5 @@ models/*
 
 store/*
 !store/placeholder.jsonl
+
+archive*/

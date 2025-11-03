@@ -9,7 +9,6 @@ from fetching.missy_fetching import (
 from utils.daterange import daterange
 from utils.min_max_date import min_max_date
 
-from config import update_cache
 import os
 from dotenv import load_dotenv
 import schedule
@@ -23,8 +22,6 @@ pw = os.getenv("PASSWORD")
 
 INPUT_FILE = "data/vertretungsfall_all.json"      # Contains the list of raw elements
 OUTPUT_FILE = "data/experience_log.json"  # Where the adapted list is saved
-
-clients = get_clients(user, pw, update_cache=update_cache)
 
 def load_json_file(path: str) -> List[Dict]:
     """Load JSON data from file or return empty list if file doesn't exist."""
@@ -89,8 +86,10 @@ def _update_experience_maps(
         ma_school_experience_map[ma_id][school_id].append(target_date_str)
         print(f"Added school assignment: MA {ma_id} at school {school_id} on {target_date_str}")
 
-def process_data_for_date(data: List[Dict], target_date: datetime, output_path: str) -> None:
+def process_data_for_date(request_info: List[Dict], data: List[Dict], target_date: datetime, output_path: str) -> None:
     """Process assignments for a specific date and update experience logs."""
+    
+    clients = get_clients(request_info, use_cache=True)
     
     date_str = target_date.strftime("%Y-%m-%d")
     print(f"Processing assignments for date: {date_str}")

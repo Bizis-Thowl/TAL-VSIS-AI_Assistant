@@ -2,65 +2,76 @@ import requests
 import json
 from datetime import datetime
 from endpoints import endpoints_missy
-from config import base_url_missy
 from utils.read_file import read_file
 from base64 import b64encode
 from utils.daterange import daterange
+from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date
 
-def get_vertretungen(date, user, pw, use_cache = True, update_cache = False):
+def get_vertretungen(request_info: List[Dict[str, str]], date: str, use_cache = False) -> List[Any]:
     
     endpoint_key = 'vertretungsfall'
     
-    vertretungen = abstract_fetch_w_date(user, pw, endpoint_key, date, use_cache, update_cache)
-    
-    vertretungen = vertretungen["VMBegleitungList"]
+    vertretungen = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key, date=date)
     
     return vertretungen
 
-def get_clients(user, pw, use_cache = True, update_cache = False):
+def get_clients(request_info: List[Dict[str, str]], use_cache = True) -> List[Any]:
     
     endpoint_key = 'klient'
     
-    clients = abstract_fetch(user, pw, endpoint_key, use_cache, update_cache)
-    
-    clients = clients["KlientInList"]
+    clients = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key)
     
     return clients
 
-def get_mas(user, pw, use_cache = True, update_cache = False):
+def get_mas(request_info: List[Dict[str, str]], use_cache = True) -> List[Any]:
     
     endpoint_key = 'ma'
     
-    mas = abstract_fetch(user, pw, endpoint_key, use_cache, update_cache)
-    
-    mas = mas["MitarbeiterInList"]
+    mas = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key)
     
     return mas
 
-def get_prio_assignments(user, pw, use_cache = True, update_cache = False):
+def get_prio_assignments(request_info: List[Dict[str, str]]) -> List[Any]:
     
     endpoint_key = 'prio_assignment'
     
-    assignments = abstract_fetch(user, pw, endpoint_key, use_cache, update_cache)
-    
-    assignments = assignments["VertretungAbList"]
+    assignments = fetch_object(request_info[0], endpoint_key)
     
     return assignments
 
-def get_distances(user, pw, use_cache = True, update_cache = False):
+def get_distances(request_info: List[Dict[str, str]], use_cache = True) -> List[Any]:
     
     endpoint_key = 'dist_ma_sch'
     
-    distances = abstract_fetch(user, pw, endpoint_key, use_cache, update_cache)
-    
-    distances = distances["MASchuleDistanzGMapList"]
+    distances = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key)
     
     return distances
 
-def fetch_object(user, pw, endpoint_key):
+def parallel_fetch_object(request_info: Dict[str, str], endpoint_key: str, parallel: bool = False, max_workers: int = 5, date: str = None) -> List[Any]:
+    responses = []
+    if parallel and len(request_info) > 1:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_info = {executor.submit(fetch_object, info, endpoint_key, date): info for info in request_info}
+            for future in as_completed(future_to_info):
+                responses.append(future.result())
+    else:
+        for info in request_info:
+            responses.append(fetch_object(info, endpoint_key, date))
+            
+    return responses
+
+def fetch_object(request_info: Dict[str, str], endpoint_key: str, date: str = None) -> List[Any]:
+    
+    user = request_info['user']
+    pw = request_info['pw']
+    base_url = request_info['url']
+    url = f"{base_url}{endpoints_missy[endpoint_key]}"
+    if date:
+        url += f"?datum={date}"
     
     token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
-    url = f"{base_url_missy}{endpoints_missy[endpoint_key]}"
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Basic {token}'
@@ -69,30 +80,43 @@ def fetch_object(user, pw, endpoint_key):
     response.raise_for_status()
     response_object = response.json()
     
-    return response_object
+    # Always only one element in the response
+    return list(response_object.values())[0]
 
-def fetch_object_w_date(user, pw, endpoint_key, date):
-    
-    
-    token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
-    
-    headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Basic {token}'
-    }
-    response = requests.get(f"{base_url_missy}{endpoints_missy[endpoint_key]}?datum={date}", headers=headers)
-    response_object = response.json()
-    
-    return response_object
+def fetch_many(
+    request_info: List[Dict[str, str]],
+    parallel: bool = False,
+    max_workers: int = 5,
+    use_cache: bool = True,
+    endpoint_key: str = None,
+    date: str = None
+) -> List[Any]:
 
-def fetch_date_objects_in_range(user, password, endpoint_key, start_date, end_date):
+	# requests_info: [{ 'user': str, 'pw': str, 'endpoint_key': str }, ...]
+
+    if not use_cache:
+        responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date)
+        handle_cache_update(responses, endpoint_key)
+    else:
+        responses = read_file(endpoint_key)
+        if responses is None:
+            responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date)
+            handle_cache_update(responses, endpoint_key)
+            
+    combined = []
+    for resp in responses:
+        combined.extend(resp)
+    
+    return combined
+
+def fetch_date_objects_in_range(request_info: List[Dict[str, str]], endpoint_key: str, start_date: date, end_date: date):
     
     response_objects = []
     
     for date in daterange(start_date, end_date):
         print(f"Fetching {endpoint_key} for {date}")
-        response_object = fetch_object_w_date(user, password, endpoint_key, date)
-        for elem in response_object["VMBegleitungList"]:
+        response_object = fetch_many(request_info, endpoint_key=endpoint_key, date=date)
+        for elem in response_object:
             response_objects.append(elem)
         
     handle_cache_update(response_objects, f"{endpoint_key}_all")
@@ -100,42 +124,10 @@ def fetch_date_objects_in_range(user, password, endpoint_key, start_date, end_da
     return response_objects
 
 
-def handle_cache_update(response_object, endpoint_key):
+def handle_cache_update(response_object: Any, endpoint_key: str) -> None:
     json_object = json.dumps(response_object, indent=4)
     with open(f"data/{endpoint_key}.json", "w") as outfile:
         outfile.write(json_object)
-        
-    return response_object
-
-def abstract_fetch(user, pw, endpoint_key, use_cache = True, update_cache = False):
-    if update_cache:
-        response_object = fetch_object(user, pw, endpoint_key)
-        handle_cache_update(response_object, endpoint_key)
-    elif use_cache:
-        response_object = read_file(endpoint_key)
-        if response_object is None:
-            response_object = fetch_object(user, pw, endpoint_key)
-            handle_cache_update(response_object, endpoint_key)
-    else:
-        response_object = fetch_object(user, pw, endpoint_key)
-        
-    return response_object
-
-def abstract_fetch_w_date(user, pw, endpoint_key, date, use_cache = True, update_cache = False):
-    if update_cache:
-        response_object = fetch_object_w_date(user, pw, endpoint_key, date)
-        handle_cache_update(response_object, endpoint_key)
-    elif use_cache:
-        response_object = read_file(endpoint_key)
-        response_object = response_object["VMBegleitungList"]
-        response_object = filter_records_w_date(response_object, date)
-        if response_object is None:
-            response_object = fetch_object_w_date(user, pw, endpoint_key, date)
-            handle_cache_update(response_object, endpoint_key)
-    else:
-        response_object = fetch_object_w_date(user, pw, endpoint_key, date)
-        
-    return response_object
 
 def filter_records_w_date(records, date):
     

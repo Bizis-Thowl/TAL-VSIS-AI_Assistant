@@ -3,7 +3,7 @@ import pandas as pd
 from utils.add_comment import add_employee_customer_comment
 from learning.model import AbnormalityModel
 from utils.base_availability import base_availability
-
+from datetime import datetime
 import json
 
 class LearningHandler:
@@ -43,11 +43,13 @@ class LearningHandler:
         cl_experience = json.loads(emp["cl_experience"]).get(client["id"])
         school_experience = json.loads(emp["school_experience"]).get(client["school"])
         short_term_cl_experience = json.loads(emp["short_term_cl_experience"]).get(client["id"])
+        availability_gap = datetime.strptime(emp["available_until"], "%Y-%m-%d") - datetime.strptime(client["available_until"], "%Y-%m-%d")
 
         add_employee_customer_comment(m_id, c_id, "Mit Auto" if emp["hasCar"] else "Ohne Auto")
         add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient: {cl_experience if cl_experience is not None else 'Keine'}")
         add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Schule: {school_experience if school_experience is not None else 'Keine'}")
         add_employee_customer_comment(m_id, c_id, f"Erfahrung mit Klient in letzter Woche: {short_term_cl_experience if short_term_cl_experience is not None else 'Keine'}")
+        add_employee_customer_comment(m_id, c_id, f"Verfügbarkeitsabstand: {availability_gap.days} Tage")
 
         combined_data = {
             "timeToSchool": time_to_school,
@@ -58,7 +60,8 @@ class LearningHandler:
             "ma_availability": emp["availability"] == base_availability,
             "mobility": emp["hasCar"],
             "geschlecht_relevant": client["requiredSex"] != None,
-            "qualifications_met": qualifications_met
+            "qualifications_met": qualifications_met,
+            "availability_gap": availability_gap.days
         }
         
         print("combined_data: ", combined_data)

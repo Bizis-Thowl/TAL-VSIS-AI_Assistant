@@ -64,32 +64,6 @@ class Optimizer:
         for j in range(len(self.clients)):
             self.model += [sum(self.assignments[(i, j)] for i in range(len(self.employees)) if (i, j) in self.assignments) <= 1]
 
-        # All self.unassigned_clients shall be assigned
-        # for j in range(len(self.clients)):
-        #     self.model += sum(self.unassigned_clients) == 0
-
-        # for elem in time_window_diffs:
-        #     self.model += elem >= 0
-        
-        # print("constraints: ", self.model.constraints)
-        
-        # print("model: ", self.model)
-
-        # def inspect_constraints(model):
-        #     for i, cons in enumerate(model.constraints):
-        #         # ← Skip any trivial True/False “constraints”
-        #         if isinstance(cons, bool):
-        #             print(f"\nConstraint #{i}: <skipped trivial {cons}>")
-        #             continue
-
-        #         print(f"\nConstraint #{i}: {cons!r}")
-        #         print("  type:", type(cons))
-        #         print("  args:", cons.args)
-        #         public = [a for a in dir(cons) if not a.startswith("_")]
-        #         print("  public attrs:", public[:5], "…")
-
-        # inspect_constraints(self.model)
-
     def solve_model(self, min_objective_value = None):
         print(f"min objective: {min_objective_value}")
         if (min_objective_value != None):
@@ -97,18 +71,6 @@ class Optimizer:
             self.model += (self.model.objective_ >  min_objective_value)
         if self.model.solve(solver="ortools"):
             logger.info("Optimal solution found!")
-            # slack_explanations = get_slack_explanations(self.model)
-            # domain_reduction = get_domain_reduction(self.model)
-            # conflict_explanations = get_conflict_explanations(self.model)
-            # shadow_prices = get_shadow_prices(self.model)
-            # objective_contribution = get_objective_contribution(self.model)
-
-            # print("slack_explanations: ", slack_explanations)
-            # print("domain_reduction: ", domain_reduction)
-            # print("conflict_explanations: ", conflict_explanations)
-            # print("shadow_prices: ", shadow_prices)
-            # print("objective_contribution: ", objective_contribution)
-            # cpmpy.tools.explain.mus.mus
             print("Optimal solution found!")
             try:
                 print(f"new min objective value: {self.model.objective_value()}")
@@ -202,10 +164,15 @@ class Optimizer:
         client = self.clients.iloc[client_idx]
         
         # convert emp["available_until"] to a human readable format, such as 01.01.2025
-        available_until_ma = str(timedelta(hours=emp["availability"][1])) if emp["availability"] is not None else "unbekannt"
-        available_until_client = str(timedelta(hours=client["timeWindow"][1])) if client["timeWindow"] is not None else "unbekannt"
+        available_until_ma = datetime.strptime(emp["available_until"], "%Y-%m-%d") if emp["available_until"] is not None else "unbekannt"
+        available_until_client = datetime.strptime(client["available_until"], "%Y-%m-%d") if client["available_until"] is not None else "unbekannt"
         add_employee_comment(emp["id"], f"Mitarbeiter frei bis: {available_until_ma}")
         add_customer_comment(client["id"], f"Klient zu vertreten bis: {available_until_client}")
+        
+        if available_until_ma is not None and available_until_client is not None:
+            availability_gap = available_until_ma - available_until_client
+        else:
+            availability_gap = None
         
         return {
             "timeToSchool": json.loads(emp["timeToSchool"]).get(client["school"]),
@@ -216,5 +183,6 @@ class Optimizer:
             "ma_availability": emp["availability"] == base_availability,
             "mobility": emp["hasCar"],
             "geschlecht_relevant": client["requiredSex"] != None,
-            "qualifications_met": all(e in emp["qualifications"] for e in client["neededQualifications"])
+            "qualifications_met": all(e in emp["qualifications"] for e in client["neededQualifications"]),
+            "availability_gap": availability_gap.days
         }
