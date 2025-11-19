@@ -29,13 +29,7 @@ Full installation instructions for UV: https://docs.astral.sh/uv/getting-started
 The configuration can be adapted for the live- or test-system via
 the variables. Additionally, it can be specified a specific date for the run, or alternatively provided `relevant_test_date = False`
 
-For the first run it is necessary to change the config as follows:
-
-```
-    update_cache = True
-```
-
-After the first run, the relatively static data is fetched and the value can be set to <i>False</i> again. Whenever changes occur to the basic data, the cache should be updated.
+In the first run, the relatively static data is fetched. Whenever changes occur to the basic data, the cache should be updated (delete + restart).
 
 #### .env
 

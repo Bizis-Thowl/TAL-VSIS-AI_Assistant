@@ -35,6 +35,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 request_specs = os.getenv("REQUEST_INFO")
+print(request_specs)
 request_specs = json.loads(request_specs)
 
 request_info = [{'user': spec['user'], 'pw': spec['pw'], 'url': base_url_missy.format(domain=spec['domain'])} for spec in request_specs]
