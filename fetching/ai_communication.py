@@ -1,17 +1,15 @@
 import requests
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import json
 from base64 import b64encode
-
-from config import base_url_ai
 
 endpoint = "VMBegleitung"
 
 def update_recommendation(
-    user: str,
-    pw: str,
+    request_info: List[Dict[str, str]],
     id: str,
-    recommendations: List[Tuple[str, str, str]] = []
+    recommendations: List[Tuple[str, str, str]] = [],
+    org: str = None
 ):
     """
     Updates a AI recommendation record.
@@ -34,35 +32,37 @@ def update_recommendation(
     #             raise ValueError(f"erklaerungvorschlag{i} must be 8000 characters or fewer.")
 
     # Construct the URL
-    url = f"{base_url_ai}{endpoint}"
-    print(url)
+    for request_data in request_info:
+        if org == request_data["url"]:
+            url = f"{request_data['url_ai']}{endpoint}"
+            print(url)
 
-    # Dynamically build the payload
-    payload = {"id": id}
+            # Dynamically build the payload
+            payload = {"id": id}
 
-    for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
-        payload[f"mavertretendvorschlag{i}"] = mavertretend
-        payload[f"erklaerungvorschlagkurz{i}"] = erklaerungkurz[:199]
-        payload[f"erklaerungvorschlag{i}"] = erklaerung[:7999]
+            for i, (mavertretend, erklaerungkurz, erklaerung) in enumerate(recommendations, start=1):
+                payload[f"mavertretendvorschlag{i}"] = mavertretend
+                payload[f"erklaerungvorschlagkurz{i}"] = erklaerungkurz[:199]
+                payload[f"erklaerungvorschlag{i}"] = erklaerung[:7999]
 
-    
-    token = b64encode(f"{user}:{pw}".encode('utf-8')).decode("ascii")
-    
-    print(payload)
-    
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': f'Basic {token}'
-    }
-    
-    try:
-        response = requests.put(url, data=payload, headers=headers)
-        print(response.request.method)
-        print(response.request.url)
-        print(response.request.headers)
-        print(response.request.body)
-        response.raise_for_status()
-        return response.text
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred: {e}")
-        return None
+            
+            token = b64encode(f"{request_data['user']}:{request_data['pw']}".encode('utf-8')).decode("ascii")
+            
+            print(payload)
+            
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {token}'
+            }
+            
+            try:
+                response = requests.put(url, data=payload, headers=headers)
+                print(response.request.method)
+                print(response.request.url)
+                print(response.request.headers)
+                print(response.request.body)
+                response.raise_for_status()
+                return response.text
+            except requests.exceptions.RequestException as e:
+                print(f"An error occurred: {e}")
+                return None

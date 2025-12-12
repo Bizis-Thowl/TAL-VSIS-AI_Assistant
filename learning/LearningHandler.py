@@ -40,9 +40,9 @@ class LearningHandler:
         if not qualifications_met:
             add_employee_customer_comment(m_id, c_id, "Qualifikationen sind laut Datensatz nicht ausreichend")
         
-        cl_experience = json.loads(emp["cl_experience"]).get(client["id"])
-        school_experience = json.loads(emp["school_experience"]).get(client["school"])
-        short_term_cl_experience = json.loads(emp["short_term_cl_experience"]).get(client["id"])
+        cl_experience = emp["cl_experience"].get(client["id"])
+        school_experience = emp["school_experience"].get(client["school"])
+        short_term_cl_experience = emp["short_term_cl_experience"].get(client["id"])
         availability_gap = datetime.strptime(emp["available_until"], "%Y-%m-%d") - datetime.strptime(client["available_until"], "%Y-%m-%d")
 
         add_employee_customer_comment(m_id, c_id, "Mit Auto" if emp["hasCar"] else "Ohne Auto")

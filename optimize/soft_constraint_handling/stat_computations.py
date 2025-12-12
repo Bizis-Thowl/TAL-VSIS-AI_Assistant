@@ -9,7 +9,7 @@ def compute_availability_gap_stats(employees, clients):
         for j, client in clients.iterrows():
             availability_gap = (
                 datetime.strptime(employee["available_until"], "%Y-%m-%d") - datetime.strptime(client["available_until"], "%Y-%m-%d")
-            )
+            ).days
             availability_gaps.append(availability_gap)
     return np.mean(availability_gaps), (np.std(availability_gaps) if availability_gaps else (0, 1))
 
@@ -30,28 +30,27 @@ def compute_short_term_client_experience_stats(employees):
     """Compute mean and standard deviation of short term client experience scores."""
     short_term_client_experience_scores = []
     for i, ma in employees.iterrows():
-        short_term_client_experience_scores.append(ma["short_term_cl_experience"])
-    return np.mean(short_term_client_experience_scores), (
-        np.std(short_term_client_experience_scores)
-        if short_term_client_experience_scores
-        else (0, 1)
-    )
+        short_term_client_experience_scores.extend(ma["short_term_cl_experience"].values())
+    
+    print(f"Short term client experience scores: {short_term_client_experience_scores}")
+    return (np.mean(short_term_client_experience_scores), (
+        np.std(short_term_client_experience_scores))) if short_term_client_experience_scores else (0, 1)
     
 def compute_client_experience_stats(employees):
     """Compute mean and standard deviation of client experience scores."""
     client_experience_scores = []
     for i, ma in employees.iterrows():
-        client_experience_scores.append(ma["cl_experience"])
-    return np.mean(client_experience_scores), (
-        np.std(client_experience_scores) if client_experience_scores else (0, 1)
-    )
+        client_experience_scores.extend(ma["cl_experience"].values())
+    return (np.mean(client_experience_scores), (
+        np.std(client_experience_scores))) if client_experience_scores else (0, 1)
     
 def compute_school_experience_stats(employees):
     """Compute mean and standard deviation of school experience scores."""
     school_experience_scores = []
     for i, ma in employees.iterrows():
-        school_experience_scores.append(ma["school_experience"])
-    return np.mean(school_experience_scores), (np.std(school_experience_scores) if school_experience_scores else (0, 1))
+        school_experience_scores.extend(ma["school_experience"].values())
+    return (np.mean(school_experience_scores), (
+        np.std(school_experience_scores))) if school_experience_scores else (0, 1)
 
 def compute_time_window_stats(employees, clients):
     """Compute mean and standard deviation of time window differences."""

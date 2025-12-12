@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 import pandas as pd
 from utils.get_weekday import get_weekday
 from utils.add_comment import add_customer_comment
 
-def aggregate_client_features(open_client_objects: List, date: datetime, prio_assignments: List):
+def aggregate_client_features(open_client_objects: List, date: datetime, prio_assignments: List, global_schools_mapping: Dict):
     client_dict = {
         "id": [],
         "neededQualifications": [],
@@ -24,7 +24,8 @@ def aggregate_client_features(open_client_objects: List, date: datetime, prio_as
         client_dict["timeWindow"].append(get_timewindow(client, weekday)) 
         priority_id = client.get("vertretungab")["id"] if client.get("vertretungab") != None else 100       
         client_dict["priority"].append(convert_priority(prio_assignments, priority_id))
-        client_dict["school"].append(client["schule"]["id"] if client.get("schule", None) != None else None)
+        global_school_id = global_schools_mapping.get(client.get("schule", {}).get("id", None), None)
+        client_dict["school"].append(global_school_id)
         
     client_df = pd.DataFrame.from_dict(client_dict)
     

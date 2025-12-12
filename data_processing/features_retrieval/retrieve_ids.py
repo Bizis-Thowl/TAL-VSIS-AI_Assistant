@@ -54,7 +54,8 @@ def get_open_client_ids(records: List) -> List:
     for record in records:
         clients.append({
             "id": record["klientzubegleiten"]["id"],
-            "until": record.get("enddatum", None)
+            "until": record.get("enddatum", None),
+            "ma_blacklist": record.get("mavorschlagblacklist", [])
         })
         
     return clients

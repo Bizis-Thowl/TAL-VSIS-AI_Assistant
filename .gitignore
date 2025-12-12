@@ -176,6 +176,7 @@ cython_debug/
 .pypirc
 
 data/*
+data2/*
 !data/placeholder.jsonl
 
 models/*

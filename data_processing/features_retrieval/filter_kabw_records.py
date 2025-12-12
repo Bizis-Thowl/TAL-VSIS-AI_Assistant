@@ -9,8 +9,7 @@ def filter_kabw_records(records: List, assigned_mas: List) -> Tuple[List]:
     }
     
     for record in records:
-        if record["typ"] == "kabw":
-            entities = assign_kabw_record(record, entities, assigned_mas)
+        entities = assign_kabw_record(record, entities, assigned_mas)
                 
     return entities
 

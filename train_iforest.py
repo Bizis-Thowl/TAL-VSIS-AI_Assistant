@@ -9,6 +9,7 @@ from fetching.missy_fetching import (
     get_clients,
     get_mas,
     get_prio_assignments,
+    get_schools,
 )
 from fetching.experience_logging import get_experience_log
 
@@ -22,8 +23,9 @@ from utils.daterange import daterange
 from utils.min_max_date import min_max_date
 from utils.read_file import read_file
 
-from config import update_cache, training_features
+from config import training_features, base_url_missy
 import os
+import json
 from dotenv import load_dotenv
 
 from tqdm import tqdm
@@ -38,17 +40,19 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-user = os.getenv("USER")
-pw = os.getenv("PASSWORD")
+request_specs = os.getenv("REQUEST_INFO")
+request_specs = json.loads(request_specs)
 
+request_info = [{'user': spec['user'], 'pw': spec['pw'], 'url': base_url_missy.format(domain=spec['domain'])} for spec in request_specs]
 
 # Retrieve mostly static data
-distances = get_distances(user, pw, update_cache=update_cache)
-clients = get_clients(user, pw, update_cache=update_cache)
-mas = get_mas(user, pw, update_cache=update_cache)
-prio_assignments = get_prio_assignments(user, pw, update_cache=update_cache)
+distances = get_distances(request_info, use_cache=True)
+clients = get_clients(request_info, use_cache=True)
+mas = get_mas(request_info, use_cache=True)
+prio_assignments = get_prio_assignments(request_info)
 experience_log = get_experience_log()
-
+schools = get_schools(request_info)
+global_schools_mapping = {school.get("id", None): school.get("systemuebergreifendeid", None) for school in schools}
 
 def main():
     
@@ -61,7 +65,7 @@ def main():
     else:
         vertretungen = read_file("vertretungsfall_all")
         data_processor = DataProcessor(
-            mas, clients, prio_assignments, distances, experience_log
+            mas, clients, prio_assignments, distances, experience_log, global_schools_mapping
         )
 
         min_date, max_date = min_max_date(vertretungen)
@@ -85,6 +89,7 @@ def main():
                 
                 mabw_records = data_processor.get_mabw_records(filtered_vertretungen)
                 rescheduled_ma_records = mabw_records["rescheduled_mas"]
+                open_client_records = mabw_records["open_clients"]
         
                 ma_assignments = data_processor.get_ma_assignments(rescheduled_ma_records)
                 assigned_mas = list(ma_assignments.keys())
@@ -95,6 +100,11 @@ def main():
                 clients_df, mas_df = (
                     data_processor.create_day_dataset(assigned_clients, assigned_mas, current_date)
                 )
+                
+                # iterate over the mas_df and add a column "available_until" based on the free_ma_ids in the form {"id": "123", "until": "2025-01-01"}
+                # First, generate the column with the correct values and then add it to the dataframe
+                mas_df["available_until"] = mas_df["id"].map(lambda x: next(datetime.strptime(item["enddatum"], "%Y-%m-%d") for item in rescheduled_ma_records if item["mavertretend"]["id"] == x), None)
+                clients_df["available_until"] = clients_df["id"].map(lambda x: next((datetime.strptime(item["enddatum"], "%Y-%m-%d") for item in rescheduled_ma_records if item["klientzubegleiten"]["id"] == x), None))
                 
                 replacements = create_replacements(ma_assignments)
                 single_df = create_single_df(clients_df, mas_df, replacements, current_date)

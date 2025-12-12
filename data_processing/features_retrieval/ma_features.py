@@ -4,7 +4,7 @@ import json
 import pandas as pd
 from utils.add_comment import add_employee_comment
 
-def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict, experience_log: List, date: str) -> Tuple[pd.DataFrame, Dict]:
+def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict, experience_log: List, date: str, global_schools_mapping: Dict) -> Tuple[pd.DataFrame, Dict]:
     ma_dict = {
         "id": [],
         "qualifications": [],
@@ -22,14 +22,13 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
         # TODO Implement
         ma_dict["sex"].append(None)
         experiences = get_experiences(ma["id"], clients_dict, experience_log, date)
-        ma_dict["cl_experience"].append(json.dumps(experiences["client_experience"]))
-        ma_dict["school_experience"].append(json.dumps(experiences["school_experience"]))
-        ma_dict["short_term_cl_experience"].append(json.dumps(experiences["short_term_client_experience"]))
-        commute_time = create_commute_info(ma["id"], clients_dict, distances)
+        ma_dict["cl_experience"].append(experiences["client_experience"])
+        ma_dict["school_experience"].append(experiences["school_experience"])
+        ma_dict["short_term_cl_experience"].append(experiences["short_term_client_experience"])
+        commute_time = create_commute_info(ma["id"], clients_dict, distances, global_schools_mapping)
         ma_dict["timeToSchool"].append(json.dumps(commute_time))
         ma_dict["hasCar"].append(get_mobility(ma))        
         ma_dict["availability"].append(get_ma_availability(ma))
-        
     ma_df = pd.DataFrame.from_dict(ma_dict)
     
     return ma_df, ma_dict
@@ -131,24 +130,21 @@ def get_ma_availability(ma):
         end_as_float = end.hour + end.minute / 60
         return (start_as_float, end_as_float)
 
-def prepare_distances(distances, ma_id):
+def prepare_distances(distances, ma_id, global_schools_mapping: Dict):
     
-    test_ma = "7c1bea51-21ba-4d24-9b91-98287bfabb7c"
     # Preprocess the distances into a dictionary for faster lookups
     distance_dict = {}
     for distance in distances:
         if distance["mitarbeiterin"]["id"] == ma_id:
-            if ma_id == test_ma:
-                print(distance)
-            school_id = distance["schule"]["id"]
+            school_id = global_schools_mapping.get(distance["schule"]["id"], None)
             if school_id not in distance_dict:
                 distance_dict[school_id] = distance
     
     return distance_dict
     
-def create_commute_info(ma_id: str, clients: dict, distances: list):
+def create_commute_info(ma_id: str, clients: dict, distances: list, global_schools_mapping: Dict):
     # Preprocess the distances into a dictionary for faster lookups
-    distance_dict = prepare_distances(distances, ma_id)
+    distance_dict = prepare_distances(distances, ma_id, global_schools_mapping)
     
     # Build the result using the preprocessed dictionary
     result = {}

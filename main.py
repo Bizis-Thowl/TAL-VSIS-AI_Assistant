@@ -4,11 +4,10 @@ import logging
 from datetime import datetime, timedelta
 import time
 import json
-from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments
+from fetching.missy_fetching import get_distances, get_clients, get_mas, get_prio_assignments, get_schools
 from fetching.experience_logging import get_experience_log
 from utils.add_comment import add_abnormality_comment
 from utils.append_to_json_file import append_to_json_file
-
 from config import relevant_date_test
 
 from data_processing.data_processor import DataProcessor
@@ -21,9 +20,9 @@ from optimize.optimize import Optimizer
 from learning.model import AbnormalityModel
 from learning.LearningHandler import LearningHandler
 from utils.assignment_alternatives import collect_alternatives
-from utils.send_update import send_update, send_empty_update
+from utils.send_update import send_update
 
-from config import training_features_de, include_abnormality, base_url_missy
+from config import training_features_de, include_abnormality, base_url_missy, base_url_ai
 
 # load .env file to environment
 load_dotenv(override=True)
@@ -38,18 +37,21 @@ request_specs = os.getenv("REQUEST_INFO")
 print(request_specs)
 request_specs = json.loads(request_specs)
 
-request_info = [{'user': spec['user'], 'pw': spec['pw'], 'url': base_url_missy.format(domain=spec['domain'])} for spec in request_specs]
+request_info = [{'user': spec['user'], 'pw': spec['pw'], 'url': base_url_missy.format(domain=spec['domain']), "url_ai": base_url_ai.format(system_spec=spec['domain'])} for spec in request_specs]
 
 # Retrieve mostly static data
 distances = get_distances(request_info)
 clients = get_clients(request_info)
 mas = get_mas(request_info)
+schools = get_schools(request_info)
 prio_assignments = get_prio_assignments(request_info)
 experience_log = get_experience_log()
 
+global_schools_mapping = {school.get("id", None): school.get("systemuebergreifendeid", None) for school in schools}
+
 def main():
     
-    data_processor = DataProcessor(mas, clients, prio_assignments, distances, experience_log)
+    data_processor = DataProcessor(mas, clients, prio_assignments, distances, experience_log, global_schools_mapping)
     old_vertretungen = None
     
     while True:
@@ -69,8 +71,6 @@ def main():
         
         relevant_date = datetime.strptime(relevant_date, '%Y-%m-%d')
         
-        print("vertretungen: ", vertretungen)
-        
         if vertretungen != old_vertretungen:
             old_vertretungen = vertretungen
         else:
@@ -89,7 +89,7 @@ def main():
         
         print("kabw_records: ", kabw_records)
         
-        client_record_assignments = data_processor.get_client_record_assignments(mabw_records["open_clients"])
+        client_record_assignments = data_processor.get_client_record_assignments(open_client_records)
 
         print("client_record_assignments: ", client_record_assignments)
 
@@ -105,18 +105,16 @@ def main():
         
         print("ids gesammelt")
         
-        print("freie MA's: ", free_ma_ids_only)
-        print("offene Klienten: ", open_client_ids_only)
-        
         clients_df, mas_df = data_processor.create_day_dataset(open_client_ids_only, free_ma_ids_only, relevant_date)
-        
-        print("clients_df: ", clients_df)
-        print("mas_df: ", mas_df)
         
         # iterate over the mas_df and add a column "available_until" based on the free_ma_ids in the form {"id": "123", "until": "2025-01-01"}
         # First, generate the column with the correct values and then add it to the dataframe
         mas_df["available_until"] = mas_df["id"].map(lambda x: next((item["until"] for item in free_ma_ids if item["id"] == x), None))
         clients_df["available_until"] = clients_df["id"].map(lambda x: next((item["until"] for item in open_client_ids if item["id"] == x), None))
+        
+        clients_df["ma_blacklist"] = clients_df["id"].map(lambda x: next((item["ma_blacklist"] for item in open_client_ids if item["id"] == x), None))        
+        
+        print("ma- und klientendatenframes erstellt")
         
         abnormality_model = AbnormalityModel()
         
@@ -138,29 +136,28 @@ def main():
             recommendation_ids.append(recommendation_id)
         
         transposed_pair_list = collect_alternatives(assigned_pairs_list)
-        # recommendations = []
-        # for assigned_pairs in transposed_pair_list:
-        #     if include_abnormality:
-        #         learner_infos = []
-        #         for i in range(len(assigned_pairs)):
-        #             learner_data = learner.prepare_data(assigned_pairs[i], mas_df, clients_df)
-        #             print(f"learner_data: {learner_data}")
-        #             learner_info = learner.predict_and_score(learner_data)
-        #             shap_values = learner.get_explanation(learner_data)
-        #             if learner_info[0] == 1: # assignment is abnormal
-        #                 add_abnormality_comment(recommendation_ids[i], shap_values, learner_data[0], training_features_de)
-        #             learner_infos.append(learner_info)
+        recommendations = []
+        for assigned_pairs in transposed_pair_list:
+            learner_infos = []
+            for i in range(len(assigned_pairs)):
+                learner_data = learner.prepare_data(assigned_pairs[i], mas_df, clients_df)
+                print(f"learner_data: {learner_data}")
+                if include_abnormality:
+                    learner_info = learner.predict_and_score(learner_data)
+                    shap_values = learner.get_explanation(learner_data)
+                    if learner_info[0] == 1: # assignment is abnormal
+                        add_abnormality_comment(recommendation_ids[i], shap_values, learner_data[0], training_features_de)
+                    learner_infos.append(learner_info)
 
-        #     recommendation = send_update(user, pw, assigned_pairs, recommendation_ids, client_record_assignments)
+            recommendation = send_update(request_info, assigned_pairs, recommendation_ids, client_record_assignments)
             
-        #     recommendations.append(recommendation)
+            recommendations.append(recommendation)
         
-        # # Clear all old recommendations that are not in the new recommendations
-        # unassigned_incidents = filter_unassigned_incidents(client_record_assignments, assigned_pairs_list)
-        # print("unassigned_incidents: ", unassigned_incidents)
-        # send_empty_update(user, pw, unassigned_incidents)
+        # Clear all old recommendations that are not in the new recommendations
+        unassigned_incidents = filter_unassigned_incidents(client_record_assignments, assigned_pairs_list)
+        print("unassigned_incidents: ", unassigned_incidents)
         
-        # append_to_json_file(recommendations, "user_recommendations.json")
+        append_to_json_file(recommendations, "user_recommendations.json")
         
         print("ran the run")
         

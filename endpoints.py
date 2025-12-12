@@ -3,5 +3,6 @@ endpoints_missy = {
     "ma": "MitarbeiterIn",
     "klient": "KlientIn",
     "prio_assignment": "VertretungAb",
-    "vertretungsfall": "VMBegleitung"
+    "vertretungsfall": "VMBegleitung",
+    "school": "Schule"
 }

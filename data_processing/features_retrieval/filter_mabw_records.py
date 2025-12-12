@@ -9,8 +9,7 @@ def filter_mabw_records(records: List) -> Tuple[List]:
     }
     
     for record in records:
-        if record["typ"] == "mabw":
-            entities = assign_mabw_record(record, entities)
+        entities = assign_mabw_record(record, entities)
                 
     return entities
 

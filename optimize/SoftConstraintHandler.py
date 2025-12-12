@@ -68,7 +68,7 @@ class SoftConstrainedHandler:
             "time_window": 10,
             "priority": 160,
             "abnormality": 200,
-            "client_experience": 100,
+            "client_experience": 300,
             "school_experience": 100,
             "short_term_client_experience": 300,
             "availability_gap": 100,
@@ -90,7 +90,7 @@ class SoftConstrainedHandler:
         """Compute short term client experience score for assignment (i,j)."""
         employee = self.employees.iloc[i]
         client_id = self.clients.iloc[j]["id"]
-        short_term_experience = json.loads(employee["short_term_cl_experience"]).get(
+        short_term_experience = employee["short_term_cl_experience"].get(
             client_id, 0
         )
         normalized_experience = self._normalize(
@@ -105,7 +105,7 @@ class SoftConstrainedHandler:
         """Compute client experience score for assignment (i,j)."""
         employee = self.employees.iloc[i]
         client_id = self.clients.iloc[j]["id"]
-        client_experience = json.loads(employee["cl_experience"]).get(client_id, 0)
+        client_experience = employee["cl_experience"].get(client_id, 0)
         normalized_experience = self._normalize(
             client_experience, self.client_experience_mean, self.client_experience_std
         )
@@ -116,7 +116,7 @@ class SoftConstrainedHandler:
         """Compute school experience score for assignment (i,j)."""
         employee = self.employees.iloc[i]
         client_school = self.clients.iloc[j]["school"]
-        school_experience = json.loads(employee["school_experience"]).get(
+        school_experience = employee["school_experience"].get(
             client_school, 0
         )
         normalized_experience = self._normalize(

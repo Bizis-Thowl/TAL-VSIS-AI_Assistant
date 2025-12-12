@@ -1,9 +1,8 @@
 import pandas as pd
 import json
-
 from utils.base_availability import base_availability
 
-feature_names = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met"]
+feature_names = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met", "available_until_mas", "available_until_client"]
 
 def create_single_df(clients_df: pd.DataFrame, mas_df: pd.DataFrame, replacements: pd.DataFrame, date: str = None) -> pd.DataFrame:
     
@@ -27,14 +26,15 @@ def create_single_row(row: pd.Series, date: str) -> pd.Series:
         "ma_id": row["id_mas"],
         "client_id": row["id_client"],
         "date": date,
-        "timeToSchool": json.loads(row["timeToSchool"]).get(row["school"]),
-        "cl_experience": json.loads(row["cl_experience"]).get(row["id_client"]),
-        "school_experience": json.loads(row["school_experience"]).get(row["school"]),
-        "short_term_cl_experience": json.loads(row["short_term_cl_experience"]).get(row["id_client"]),
+        "timeToSchool": json.loads(row["timeToSchool"]).get(row["school"], None),
+        "cl_experience": json.loads(row["cl_experience"]).get(row["id_client"], 0),
+        "school_experience": json.loads(row["school_experience"]).get(row["school"], 0),
+        "short_term_cl_experience": json.loads(row["short_term_cl_experience"]).get(row["id_client"], 0),
         "priority": row["priority"],
         "ma_availability": row["availability"] == base_availability,
         "mobility": row["hasCar"],
         "geschlecht_relevant": row["requiredSex"] != None,
-        "qualifications_met": all(e in row["qualifications"] for e in row["neededQualifications"])
+        "qualifications_met": all(e in row["qualifications"] for e in row["neededQualifications"]),
+        "availability_gap": (row["available_until_mas"] - row["available_until_client"]).days
     }
     return row_dict

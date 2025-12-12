@@ -13,7 +13,7 @@ def get_vertretungen(request_info: List[Dict[str, str]], date: str, use_cache = 
     
     endpoint_key = 'vertretungsfall'
     
-    vertretungen = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key, date=date)
+    vertretungen = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key, date=date, add_global_info=True)
     
     return vertretungen
 
@@ -49,7 +49,15 @@ def get_distances(request_info: List[Dict[str, str]], use_cache = True) -> List[
     
     return distances
 
-def parallel_fetch_object(request_info: Dict[str, str], endpoint_key: str, parallel: bool = False, max_workers: int = 5, date: str = None) -> List[Any]:
+def get_schools(request_info: List[Dict[str, str]], use_cache = True) -> List[Any]:
+    
+    endpoint_key = 'school'
+    
+    schools = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key)
+    
+    return schools
+
+def parallel_fetch_object(request_info: Dict[str, str], endpoint_key: str, parallel: bool = False, max_workers: int = 5, date: str = None, add_global_info: bool = False) -> List[Any]:
     responses = []
     if parallel and len(request_info) > 1:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -58,7 +66,11 @@ def parallel_fetch_object(request_info: Dict[str, str], endpoint_key: str, paral
                 responses.append(future.result())
     else:
         for info in request_info:
-            responses.append(fetch_object(info, endpoint_key, date))
+            full_response = fetch_object(info, endpoint_key, date)
+            if add_global_info:
+                for elem in full_response:
+                    elem["org"] = info["url"]
+            responses.append(full_response)
             
     return responses
 
@@ -68,6 +80,12 @@ def fetch_object(request_info: Dict[str, str], endpoint_key: str, date: str = No
     pw = request_info['pw']
     base_url = request_info['url']
     url = f"{base_url}{endpoints_missy[endpoint_key]}"
+    print(f"Fetching {url}")
+    print(f"Date: {date}")
+    print(f"User: {user}")
+    print(f"PW: {pw}")
+    print(f"Base URL: {base_url}")
+    print(f"Endpoint Key: {endpoint_key}")
     if date:
         url += f"?datum={date}"
     
@@ -79,7 +97,7 @@ def fetch_object(request_info: Dict[str, str], endpoint_key: str, date: str = No
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     response_object = response.json()
-    
+    print(f"Response Object: {response_object}")
     # Always only one element in the response
     return list(response_object.values())[0]
 
@@ -89,18 +107,19 @@ def fetch_many(
     max_workers: int = 5,
     use_cache: bool = True,
     endpoint_key: str = None,
-    date: str = None
+    date: str = None,
+    add_global_info: bool = False
 ) -> List[Any]:
 
 	# requests_info: [{ 'user': str, 'pw': str, 'endpoint_key': str }, ...]
 
     if not use_cache:
-        responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date)
+        responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date, add_global_info)
         handle_cache_update(responses, endpoint_key)
     else:
         responses = read_file(endpoint_key)
         if responses is None:
-            responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date)
+            responses = parallel_fetch_object(request_info, endpoint_key, parallel, max_workers, date, add_global_info)
             handle_cache_update(responses, endpoint_key)
             
     combined = []
@@ -115,7 +134,8 @@ def fetch_date_objects_in_range(request_info: List[Dict[str, str]], endpoint_key
     
     for date in daterange(start_date, end_date):
         print(f"Fetching {endpoint_key} for {date}")
-        response_object = fetch_many(request_info, endpoint_key=endpoint_key, date=date)
+        response_object = fetch_many(request_info, use_cache=False, endpoint_key=endpoint_key, date=date)
+        print(f"Vertretungen for {date}: {response_object}")
         for elem in response_object:
             response_objects.append(elem)
         

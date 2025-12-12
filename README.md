@@ -33,17 +33,13 @@ In the first run, the relatively static data is fetched. Whenever changes occur 
 
 #### .env
 
-There is a file called `.env_example` create a copy of it and name it `.env`. Then fill in the necessary entries (user and password).
+There is a file called `.env_example` create a copy of it and name it `.env`. Then fill in the necessary entries (REQUEST_INFO).
 
 ### Store and Update Necessary Data
 
-To save all vertretungsfälle from a starting date (The date in the script must be adapted as needed. Currently defaults to 20.02.25) to the current date:
+To save all vertretungsfälle from a starting date to an end date. Also, extract necessary information from the vertretungsfälle and prepare the data to be used in the main script:
 ```
 python test2.py
-```
-Extract necessary information from the vertretungsfälle and prepare the data to be used in the main script:
-```
-python update_ma_client_history.py
 ```
 
 ### Train Machine Learning Model (iForest)
