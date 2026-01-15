@@ -108,6 +108,7 @@ def main():
                 
                 replacements = create_replacements(ma_assignments)
                 single_df = create_single_df(clients_df, mas_df, replacements, current_date)
+                print("single_df: ", single_df)
                 
 
                 if full_dataset is None:
@@ -118,6 +119,8 @@ def main():
                 
 
         full_dataset.to_csv(full_dataset_path, index=False)  
+        
+        
 
     non_nan_dataset = full_dataset[~full_dataset.isna().any(axis=1)]
     X_train = non_nan_dataset[training_features]

@@ -8,7 +8,7 @@ log_store = "store"
 include_abnormality = False
 
 # Set to False for a live test today
-relevant_date_test = "2025-11-26"
+relevant_date_test = "2025-11-25"
 
 training_features = ["timeToSchool", "cl_experience", "short_term_cl_experience", "school_experience", "priority", "ma_availability", "mobility", "geschlecht_relevant", "qualifications_met", "availability_gap"]
 
