@@ -89,7 +89,7 @@ class DataProcessor:
         for record in records:
             client_record_assignments[record["klientzubegleiten"]["id"]] = {
                 "id": record["id"],
-                "org": record["org"],
+                "org": record.get("org"),
             }
 
         return client_record_assignments
