@@ -108,8 +108,8 @@ class Optimizer:
         print(f"min objective: {min_objective_value}")
         if min_objective_value != None:
             # self.model = cp.Model(self.model.constraints)
-            print(f"objective value: {self.model.objective_value()}")
-            print(f"objective: {self.model.objective_}")
+            # print(f"objective value: {self.model.objective_value()}")
+            # print(f"objective: {self.model.objective_}")
             self.model += self.model.objective_ > min_objective_value
         if self.model.solve(solver="ortools"):
             logger.info("Optimal solution found!")

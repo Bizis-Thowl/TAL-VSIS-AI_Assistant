@@ -45,6 +45,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+logger = logging.getLogger("main")
+
 request_specs = os.getenv("REQUEST_INFO")
 print(request_specs)
 request_specs = json.loads(request_specs)
@@ -72,6 +74,8 @@ global_schools_mapping = {
     for school in schools
 }
 
+sleep_start = 21
+sleep_end = 5
 
 def main():
 
@@ -86,6 +90,19 @@ def main():
     old_vertretungen = None
 
     while True:
+        now = datetime.now()
+        current_hour = now.hour
+        
+        if current_hour >= sleep_start or current_hour < sleep_end:
+            if current_hour >= sleep_start:
+                next_run = now.replace(hour=sleep_end, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            else:
+                next_run = now.replace(hour=sleep_end, minute=0, second=0, microsecond=0)
+            
+            wait_seconds = (next_run - now).total_seconds()
+            logger.info(f"Quiet hours ({sleep_start} pm - {sleep_end} am). Skipping execution. Next run at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+            time.sleep(wait_seconds)
+            continue
 
         if relevant_date_test:
             relevant_date = relevant_date_test
@@ -105,7 +122,7 @@ def main():
         if vertretungen != old_vertretungen:
             old_vertretungen = vertretungen
         else:
-            print("No new updates")
+            logger.info("No new updates")
             time.sleep(10)
             continue
 
@@ -223,9 +240,11 @@ def main():
 
         append_to_json_file(recommendations, "user_recommendations.json")
 
-        print("ran the run")
+        logger.info("Sent recommendations update")
 
-        time.sleep(10)
+        # Sleep for 3 minutes before next iteration
+        # (Quiet hours check happens at the start of the loop)
+        time.sleep(180)  # 3 minutes = 180 seconds
 
 
 # assigned_pairs is a list of dictionaries with the following structure:
