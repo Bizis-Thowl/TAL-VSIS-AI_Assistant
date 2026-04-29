@@ -186,3 +186,5 @@ store/*
 !store/placeholder.jsonl
 
 archive*/
+
+.cursor/

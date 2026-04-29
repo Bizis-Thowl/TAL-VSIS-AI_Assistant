@@ -1,7 +1,7 @@
 from typing import List, Dict
 import pandas as pd
 
-def get_free_ma_ids(free_ma_records: List, absent_client_records, mas) -> List:
+def get_free_ma_ids(free_ma_records: List) -> List:
     
     open_mas = []
     for record in free_ma_records:

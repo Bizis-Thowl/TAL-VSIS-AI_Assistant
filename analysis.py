@@ -102,180 +102,247 @@ def merge_consecutive_free_ma_records(records):
 
     return merged_records
 
-def create_comparison_plots(my_dict):
-    # Get all keys that end with '_labels' or '_recommendations'
-    keys = [
-        k.replace("_labels", "")
-        for k in my_dict.keys()
-        if k.endswith("_labels") and isinstance(my_dict[k], dict)
-    ]
 
-    print(keys)
-
-    # Create a figure with subplots
-    n_keys = int(len(keys) / 2) + 1
-    fig, axes = plt.subplots(n_keys, 2, figsize=(10, 5 * n_keys))
-    if n_keys == 1:
-        axes = [axes]
-
-    print(my_dict["count_labels"])
-    print(my_dict["timeToSchool_labels"])
-    print(my_dict["timeToSchool_labels"]["min"])
-
-    # Create box plots for each key
-    for idx, key in enumerate(keys):
-        # Prepare data for box plot
-        labels_data = [
-            my_dict[f"{key}_labels"]["min"],
-            my_dict[f"{key}_labels"]["mean"],
-            my_dict[f"{key}_labels"]["median"],
-            my_dict[f"{key}_labels"]["max"],
-        ]
-
-        recommendations_data = [
-            my_dict[f"{key}_recommendations"]["min"],
-            my_dict[f"{key}_recommendations"]["mean"],
-            my_dict[f"{key}_recommendations"]["median"],
-            my_dict[f"{key}_recommendations"]["max"],
-        ]
-
-        # Create box plot
-        data = [labels_data, recommendations_data]
-        d_index = int(idx / 2), idx % 2
-        sns.boxplot(data=data, ax=axes[d_index])
-        axes[d_index].set_title(f"Comparison of {key}")
-        axes[d_index].set_ylabel("Value")
-
-    plt.tight_layout()
-    plt.show()
+def _safe_bool_series(df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in df.columns:
+        return pd.Series(False, index=df.index)
+    return df[column].fillna(False).astype(bool)
 
 
-def create_time_series_plots(comparison):
-    # Get all keys that end with '_labels' or '_recommendations'
-    keys = [
-        k.replace("_labels", "")
-        for k in comparison[0].keys()
-        if k.endswith("_labels") and isinstance(comparison[0][k], dict)
-    ]
+def _safe_numeric_series(df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in df.columns:
+        return pd.Series(dtype="float64")
+    return pd.to_numeric(df[column], errors="coerce")
 
-    # Create a figure with subplots
-    n_keys = len(keys)
-    fig, axes = plt.subplots(n_keys, 1, figsize=(15, 5 * n_keys))
-    if n_keys == 1:
-        axes = [axes]
 
-    # Sort comparison by date
-    comparison.sort(key=lambda x: x["date"])
-    dates = [entry["date"] for entry in comparison]
+def _to_json_serializable(value):
+    if isinstance(value, dict):
+        return {key: _to_json_serializable(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_to_json_serializable(val) for val in value]
+    if isinstance(value, tuple):
+        return [_to_json_serializable(val) for val in value]
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.isoformat()
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if pd.isna(value):
+        return None
+    return value
 
-    # Create line plots for each key
-    for idx, key in enumerate(keys):
-        # Extract all statistics for labels and recommendations
-        labels_data = {
-            "mean": [entry[f"{key}_labels"]["mean"] for entry in comparison],
-            "median": [entry[f"{key}_labels"]["median"] for entry in comparison],
-            "min": [entry[f"{key}_labels"]["min"] for entry in comparison],
-            "max": [entry[f"{key}_labels"]["max"] for entry in comparison],
-            "std": [entry[f"{key}_labels"]["std"] for entry in comparison],
+
+def _serialize_client_row(client_row: pd.Series) -> dict:
+    return {column: _to_json_serializable(value) for column, value in client_row.items()}
+
+
+def _init_client_assignment_tracking() -> dict:
+    return {
+        "labels": {
+            "priority_10": {},
+            "other_priorities": {},
+            "all_priorities": {},
+        },
+        "recommendations": {
+            "priority_10": {},
+            "other_priorities": {},
+            "all_priorities": {},
+        },
+    }
+
+
+def _update_client_assignment_tracking(
+    tracking: dict,
+    clients_df: pd.DataFrame,
+    assigned_client_ids: set,
+    analysis_type: str,
+):
+    for _, client_row in clients_df.iterrows():
+        client_id = client_row.get("id")
+        if client_id is None:
+            continue
+
+        group_names = ["all_priorities"]
+        if client_row.get("priority") == 10:
+            group_names.append("priority_10")
+        else:
+            group_names.append("other_priorities")
+
+        is_assigned = client_id in assigned_client_ids
+        serialized_row = _serialize_client_row(client_row)
+
+        for group_name in group_names:
+            group_tracking = tracking[analysis_type][group_name]
+            if client_id not in group_tracking:
+                group_tracking[client_id] = {
+                    "client": serialized_row,
+                    "assigned_count": 0,
+                    "not_assigned_count": 0,
+                }
+            if is_assigned:
+                group_tracking[client_id]["assigned_count"] += 1
+            else:
+                group_tracking[client_id]["not_assigned_count"] += 1
+
+
+def _finalize_client_assignment_tracking(tracking: dict) -> dict:
+    output = {}
+    for analysis_type, groups in tracking.items():
+        output[analysis_type] = {}
+        for group_name, clients in groups.items():
+            rows = []
+            for client_id, entry in clients.items():
+                assigned_count = int(entry["assigned_count"])
+                not_assigned_count = int(entry["not_assigned_count"])
+                total_count = assigned_count + not_assigned_count
+                rows.append(
+                    {
+                        "client_id": client_id,
+                        "group": group_name,
+                        "client": entry["client"],
+                        "assigned_count": assigned_count,
+                        "not_assigned_count": not_assigned_count,
+                        "total_count": total_count,
+                        "assignment_percentage": (
+                            float((assigned_count / total_count) * 100)
+                            if total_count > 0
+                            else None
+                        ),
+                    }
+                )
+            rows.sort(
+                key=lambda row: (
+                    row["not_assigned_count"],
+                    -row["assigned_count"],
+                    str(row["client_id"]),
+                ),
+                reverse=True,
+            )
+            output[analysis_type][group_name] = rows
+    return output
+
+
+def compute_priority_stats(
+    df: pd.DataFrame, group_name: str, total_clients_count: int = 0
+) -> dict:
+    assigned_count = int(len(df))
+    assigned_percentage = (
+        float((assigned_count / total_clients_count) * 100)
+        if total_clients_count > 0
+        else None
+    )
+
+    if df.empty:
+        return {
+            "group": group_name,
+            "entries_count": assigned_count,
+            "total_clients_count": int(total_clients_count),
+            "assigned_percentage": assigned_percentage,
+            "experience_gt_1_count": {
+                "cl_experience": 0,
+                "school_experience": 0,
+                "short_term_cl_experience": 0,
+            },
+            "experience_average": {
+                "cl_experience": None,
+                "school_experience": None,
+                "short_term_cl_experience": None,
+            },
+            "ma_availability_true_count": 0,
+            "qualifications_met_true_count": 0,
+            "availability_gap_positive_count": 0,
+            "availability_gap_positive_average": None,
+            "average_time_to_school": None,
+            "mobility_percentage": None,
         }
 
-        recommendations_data = {
-            "mean": [entry[f"{key}_recommendations"]["mean"] for entry in comparison],
-            "median": [
-                entry[f"{key}_recommendations"]["median"] for entry in comparison
-            ],
-            "min": [entry[f"{key}_recommendations"]["min"] for entry in comparison],
-            "max": [entry[f"{key}_recommendations"]["max"] for entry in comparison],
-            "std": [entry[f"{key}_recommendations"]["std"] for entry in comparison],
-        }
+    cl_experience = _safe_numeric_series(df, "cl_experience")
+    school_experience = _safe_numeric_series(df, "school_experience")
+    short_term_cl_experience = _safe_numeric_series(df, "short_term_cl_experience")
+    ma_availability = _safe_bool_series(df, "ma_availability")
+    qualifications_met = _safe_bool_series(df, "qualifications_met")
+    availability_gap = _safe_numeric_series(df, "availability_gap")
+    time_to_school = _safe_numeric_series(df, "timeToSchool")
+    mobility = _safe_bool_series(df, "mobility")
+    availability_gap_positive = availability_gap[availability_gap > 0]
 
-        # Create box plot data
-        labels_box_data = []
-        recommendations_box_data = []
-        for i in range(len(dates)):
-            # Create box plot data using min, max, median, and quartiles
-            labels_box_data.append(
-                [
-                    labels_data["min"][i],
-                    labels_data["median"][i] - labels_data["std"][i],
-                    labels_data["median"][i],
-                    labels_data["median"][i] + labels_data["std"][i],
-                    labels_data["max"][i],
-                ]
-            )
-            recommendations_box_data.append(
-                [
-                    recommendations_data["min"][i],
-                    recommendations_data["median"][i] - recommendations_data["std"][i],
-                    recommendations_data["median"][i],
-                    recommendations_data["median"][i] + recommendations_data["std"][i],
-                    recommendations_data["max"][i],
-                ]
-            )
+    return {
+        "group": group_name,
+        "entries_count": assigned_count,
+        "total_clients_count": int(total_clients_count),
+        "assigned_percentage": assigned_percentage,
+        "experience_gt_1_count": {
+            "cl_experience": int((cl_experience > 1).sum()),
+            "school_experience": int((school_experience > 1).sum()),
+            "short_term_cl_experience": int((short_term_cl_experience > 1).sum()),
+        },
+        "experience_average": {
+            "cl_experience": float(cl_experience.mean()) if not cl_experience.dropna().empty else None,
+            "school_experience": float(school_experience.mean()) if not school_experience.dropna().empty else None,
+            "short_term_cl_experience": float(short_term_cl_experience.mean()) if not short_term_cl_experience.dropna().empty else None,
+        },
+        "ma_availability_true_count": int(ma_availability.sum()),
+        "qualifications_met_true_count": int(qualifications_met.sum()),
+        "availability_gap_positive_count": int((availability_gap > 0).sum()),
+        "availability_gap_positive_average": (
+            float(availability_gap_positive.mean())
+            if not availability_gap_positive.dropna().empty
+            else None
+        ),
+        "average_time_to_school": (
+            float(time_to_school.mean()) if not time_to_school.dropna().empty else None
+        ),
+        "mobility_percentage": float(mobility.mean() * 100),
+    }
 
-        # Create line plot with box plots
-        axes[idx].plot(
-            range(len(dates)),
-            labels_data["mean"],
-            "b-",
-            label="Labels Mean",
-            marker="o",
-            alpha=0.7,
-        )
-        axes[idx].plot(
-            range(len(dates)),
-            recommendations_data["mean"],
-            "r-",
-            label="Recommendations Mean",
-            marker="s",
-            alpha=0.7,
-        )
 
-        # Add box plots
-        for i in range(len(dates)):
-            # Labels box plot
-            axes[idx].boxplot(
-                [labels_box_data[i]],
-                positions=[i - 0.2],
-                widths=0.3,
-                patch_artist=True,
-                boxprops=dict(facecolor="blue", alpha=0.1),
-            )
-            # Recommendations box plot
-            axes[idx].boxplot(
-                [recommendations_box_data[i]],
-                positions=[i + 0.2],
-                widths=0.3,
-                patch_artist=True,
-                boxprops=dict(facecolor="red", alpha=0.1),
-            )
+def build_df_analysis(
+    df: pd.DataFrame, clients_df: pd.DataFrame, df_type: str, date_value
+) -> dict:
+    date_str = date_value.strftime("%Y-%m-%d") if isinstance(date_value, datetime) else str(date_value)
 
-        # Customize plot
-        axes[idx].set_title(f"Time Series of {key} with Distribution")
-        axes[idx].set_xlabel("Date")
-        axes[idx].set_ylabel("Value")
-        axes[idx].legend()
-        axes[idx].grid(True)
+    priority_values = _safe_numeric_series(df, "priority")
+    priority_10_df = df[priority_values == 10]
+    priority_other_df = df[priority_values != 10]
 
-        # Set x-axis ticks to dates
-        axes[idx].set_xticks(range(len(dates)))
-        axes[idx].set_xticklabels(dates, rotation=45, ha="right")
+    client_priority_values = _safe_numeric_series(clients_df, "priority")
+    total_priority_10_count = int((client_priority_values == 10).sum())
+    total_other_priorities_count = int((client_priority_values != 10).sum())
+    total_all_priorities_count = int(len(clients_df))
 
-        # Add some padding to prevent box plots from being cut off
-        axes[idx].margins(x=0.1)
-
-    plt.tight_layout()
-    plt.show()
-
+    return {
+        "type": df_type,
+        "date": date_str,
+        "stats": {
+            "priority_10": compute_priority_stats(
+                priority_10_df, "priority_10", total_priority_10_count
+            ),
+            "other_priorities": compute_priority_stats(
+                priority_other_df, "other_priorities", total_other_priorities_count
+            ),
+            "all_priorities": compute_priority_stats(
+                df, "all_priorities", total_all_priorities_count
+            ),
+        },
+    }
 
 def main():
 
     data_processor = DataProcessor(
-        mas, clients, prio_assignments, distances, experience_log, global_schools_mapping
+        mas,
+        clients,
+        prio_assignments,
+        distances,
+        experience_log,
+        global_schools_mapping,
     )
     comparison = []
-    start_date = "2026-04-14"
-    end_date = "2026-04-18"
+    client_assignment_tracking = _init_client_assignment_tracking()
+    start_date = "2026-03-23"
+    end_date = "2026-04-27"
     for relevant_date in pd.date_range(start=start_date, end=end_date):
         relevant_date = relevant_date.strftime("%Y-%m-%d")
 
@@ -285,23 +352,50 @@ def main():
             continue
 
         relevant_date = datetime.strptime(relevant_date, "%Y-%m-%d")
-
-        free_ma_records = merge_consecutive_free_ma_records(
-            list(filter(lambda x: x.get("mafrei") != None, vertretungen))
-        )
+        
         assigned_records = list(
             filter(lambda x: x.get("klientzubegleiten") != None, vertretungen)
         )
-        absent_ma_records = list(	
-            filter(lambda x: x.get("maabwesend") != None and x.get("klientabwesend") == None, vertretungen)
+        assignments = [
+            {
+                "ma": elem["mavertretend"]["id"],
+                "klient": elem["klientzubegleiten"]["id"],
+            }
+            for elem in assigned_records
+        ]
+        absent_ma_records = list(
+            filter(
+                lambda x: x.get("maabwesend") != None
+                and x.get("klientzubegleiten") == None,
+                vertretungen,
+            )
         )
-        
+        free_and_assigned_ma_records = [
+            {
+                **elem,
+                "mafrei": {"id": elem.get("mavertretend").get("id")},
+            }
+            for elem in assigned_records if elem.get("mavertretend") != None
+        ]
+
+        free_ma_records = merge_consecutive_free_ma_records(
+            list(filter(lambda x: x.get("mafrei") != None, vertretungen)) +
+            free_and_assigned_ma_records
+        )
+
         absent_ma_ids = [elem["maabwesend"]["id"] for elem in absent_ma_records]
-        
-        all_open_clients = [elem["id"] for sublist in [sublist["aktiveklientinnen"] for sublist in mas if sublist.get("id") in absent_ma_ids] for elem in sublist]
-        all_open_clients = list(set(all_open_clients))
-        assigned_clients = list(set([elem["klientzubegleiten"]["id"] for elem in assigned_records]))
-        
+
+        absent_mas = [ma for ma in mas if ma.get("id") in absent_ma_ids]
+        all_open_clients = {
+            ma.get("id"): client_id.get("id")
+            for ma in absent_mas
+            for client_id in ma["aktiveklientinnen"]
+        }
+        all_open_clients = {
+            **all_open_clients,
+            **{elem["ma"]: elem["klient"] for elem in assignments}
+        }
+
         free_mas = [
             {
                 "id": elem["mafrei"]["id"],
@@ -310,23 +404,25 @@ def main():
             for elem in free_ma_records
         ]
         free_ma_ids = [elem["id"] for elem in free_mas]
-        
-        print(len(all_open_clients))
-        print(len(assigned_clients))
-        print(len(free_mas))
-        
-        assignments = [
+
+        open_clients = [
             {
-                "ma": elem["mavertretend"]["id"],
-                "klient": elem["klientzubegleiten"]["id"],
+                "id": all_open_clients.get(elem["maabwesend"]["id"]),
+                "until": datetime.strptime(elem.get("enddatum", None), "%Y-%m-%d"),
+                "ma_blacklist": elem.get("mavorschlagblacklist", []),
             }
-            for elem in assigned_records
+            for elem in absent_ma_records if all_open_clients.get(elem["maabwesend"]["id"]) != None
         ]
+        open_client_ids = [elem["id"] for elem in open_clients]
+
+        
+        open_client_ids = list(set(open_client_ids))
+        free_ma_ids = list(set(free_ma_ids + [elem["ma"] for elem in assignments]))
 
         clients_df, mas_df = data_processor.create_day_dataset(
-            all_open_clients, free_ma_ids, relevant_date
+            open_client_ids, free_ma_ids, relevant_date
         )
-        
+
         mas_df["available_until"] = mas_df["id"].map(
             lambda x: next(
                 (item["until"] for item in free_mas if item["id"] == x), None
@@ -334,14 +430,14 @@ def main():
         )
         clients_df["available_until"] = clients_df["id"].map(
             lambda x: next(
-                (item["until"] for item in all_open_clients if item["id"] == x), None
+                (item["until"] for item in open_clients if item["id"] == x), None
             )
         )
 
         clients_df["ma_blacklist"] = clients_df["id"].map(
             lambda x: next(
-                (item["ma_blacklist"] for item in all_open_clients if item["id"] == x),
-                None,
+                (item["ma_blacklist"] for item in open_clients if item["id"] == x),
+                [],
             )
         )
 
@@ -358,6 +454,9 @@ def main():
 
         replacements = create_replacements(assignments)
         replacement_recommendations = create_replacements(assigned_pairs)
+        
+        print(replacements)
+        print(replacement_recommendations)
 
         single_df_labels = create_single_df(
             clients_df, mas_df, replacements, relevant_date
@@ -366,43 +465,42 @@ def main():
             clients_df, mas_df, replacement_recommendations, relevant_date
         )
 
-        print(f"Labels: {single_df_labels['qualifications_met']}")
-        # print(f"Recommendations: {single_df_recommendations.describe()}")
+        _update_client_assignment_tracking(
+            client_assignment_tracking,
+            clients_df,
+            set(assignments.values()),
+            "labels",
+        )
+        _update_client_assignment_tracking(
+            client_assignment_tracking,
+            clients_df,
+            set(assigned_pairs.values()),
+            "recommendations",
+        )
 
-        # Create a dictionary that retrieves entries from the describe function
-        description_labels = single_df_labels.describe().to_dict()
-        description_recommendations = single_df_recommendations.describe().to_dict()
-
-        my_dict = {
-            "date": relevant_date,
-            "count_labels": len(single_df_labels),
-            "count_recommendations": len(single_df_recommendations),
-        }
-
-        # Loop through all keys in the description dictionaries
-        for key in description_labels.keys():
-            if key == "date":
-                continue
-            my_dict[f"{key}_labels"] = {
-                "mean": description_labels[key]["mean"],
-                "median": description_labels[key]["50%"],
-                "std": description_labels[key]["std"],
-                "min": description_labels[key]["min"],
-                "max": description_labels[key]["max"],
+        comparison.append(
+            {
+                "date": relevant_date.strftime("%Y-%m-%d"),
+                "labels": build_df_analysis(
+                    single_df_labels, clients_df, "labels", relevant_date
+                ),
+                "recommendations": build_df_analysis(
+                    single_df_recommendations, clients_df, "recommendations", relevant_date
+                ),
             }
-            my_dict[f"{key}_recommendations"] = {
-                "mean": description_recommendations[key]["mean"],
-                "median": description_recommendations[key]["50%"],
-                "std": description_recommendations[key]["std"],
-                "min": description_recommendations[key]["min"],
-                "max": description_recommendations[key]["max"],
-            }
+        )
 
-        comparison.append(my_dict)
+    output_file = "data/comparison_analysis.json"
+    with open(output_file, "w", encoding="utf-8") as f:
+        json.dump(comparison, f, ensure_ascii=False, indent=2)
 
-    print(my_dict)
-    create_comparison_plots(my_dict)
-    create_time_series_plots(comparison)
+    client_tracking_output = _finalize_client_assignment_tracking(client_assignment_tracking)
+    tracking_output_file = "data/comparison_client_assignment_tracking.json"
+    with open(tracking_output_file, "w", encoding="utf-8") as f:
+        json.dump(client_tracking_output, f, ensure_ascii=False, indent=2)
+
+    print(f"Saved comparison analysis to {output_file}")
+    print(f"Saved client assignment tracking to {tracking_output_file}")
 
 
 if __name__ == "__main__":

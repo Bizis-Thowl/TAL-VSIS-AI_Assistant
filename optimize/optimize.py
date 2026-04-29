@@ -230,12 +230,12 @@ class Optimizer:
 
         # convert emp["available_until"] to a human readable format, such as 01.01.2025
         available_until_ma = (
-            datetime.strptime(emp["available_until"], "%Y-%m-%d")
+            emp["available_until"]
             if emp["available_until"] is not None
             else "unbekannt"
         )
         available_until_client = (
-            datetime.strptime(client["available_until"], "%Y-%m-%d")
+            client["available_until"]
             if client["available_until"] is not None
             else "unbekannt"
         )
@@ -245,7 +245,7 @@ class Optimizer:
         )
 
         if available_until_ma is not None and available_until_client is not None:
-            availability_gap = available_until_ma - available_until_client
+            availability_gap = (available_until_ma - available_until_client)
         else:
             availability_gap = None
 

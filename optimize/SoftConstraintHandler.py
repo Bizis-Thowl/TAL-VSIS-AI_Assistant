@@ -1,7 +1,6 @@
 import numpy as np
 import json
 from learning.model import AbnormalityModel
-from datetime import datetime
 
 # To ensure that the minimized value is high and can be converted to ints for using it to set constraints
 scaling_factor = 1000000
@@ -66,7 +65,7 @@ class SoftConstrainedHandler:
             "unassigned": 1000,
             "travel_time": 30,
             "time_window": 10,
-            "priority": 160,
+            "priority": 1000,
             "abnormality": 200,
             "client_experience": 300,
             "school_experience": 100,
@@ -178,11 +177,9 @@ class SoftConstrainedHandler:
         """Availability gap term for assignment (i,j)."""
         employee = self.employees.iloc[i]
         client = self.clients.iloc[j]
-        availability_gap = datetime.strptime(
-            employee["available_until"], "%Y-%m-%d"
-        ) - datetime.strptime(client["available_until"], "%Y-%m-%d")
+        availability_gap = employee["available_until"] - client["available_until"]
         normalized_gap = self._normalize(
-            availability_gap, self.availability_gap_mean, self.availability_gap_std
+            availability_gap.days, self.availability_gap_mean, self.availability_gap_std
         )
         scaled_gap = int(round(-normalized_gap * scaling_factor))
         return self.assignments[(i, j)] * scaled_gap

@@ -16,7 +16,7 @@ OUTPUT_FILE = "data/experience_log.json"  # Where the adapted list is saved
 
 if __name__ == "__main__":
     
-    start_date = date(2025, 11, 23)
+    start_date = date(2026, 3, 1)
     end_date = date.today() + timedelta(days=1)
     endpoint_key = 'vertretungsfall'
     

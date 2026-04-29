@@ -31,7 +31,7 @@ def create_single_row(row: pd.Series, date: str) -> pd.Series:
         "school_experience": row["school_experience"].get(row["school"], 0),
         "short_term_cl_experience": row["short_term_cl_experience"].get(row["id_client"], 0),
         "priority": row["priority"],
-        "ma_availability": row["availability"] == base_availability,
+        "ma_availability": row["availability"][1] > row["timeWindow"][1] if row["timeWindow"] != None else None,
         "mobility": row["hasCar"],
         "geschlecht_relevant": row["requiredSex"] != None,
         "qualifications_met": all(e in row["qualifications"] for e in row["neededQualifications"]),

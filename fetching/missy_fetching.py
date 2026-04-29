@@ -138,7 +138,18 @@ def fetch_date_objects_in_range(request_info: List[Dict[str, str]], endpoint_key
         print(f"Vertretungen for {date}: {response_object}")
         for elem in response_object:
             response_objects.append(elem)
-        
+    
+    # remove duplicates by id while keeping first occurrence
+    seen_ids = set()
+    deduplicated_response_objects = []
+    for elem in response_objects:
+        elem_id = elem.get("id")
+        if elem_id not in seen_ids:
+            seen_ids.add(elem_id)
+            deduplicated_response_objects.append(elem)
+    response_objects = deduplicated_response_objects
+    
+    
     handle_cache_update(response_objects, f"{endpoint_key}_all")
         
     return response_objects

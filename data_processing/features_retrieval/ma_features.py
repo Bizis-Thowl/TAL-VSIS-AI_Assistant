@@ -21,7 +21,7 @@ def aggregate_ma_features(ma_objects: List, distances: List, clients_dict: Dict,
         ma_dict["qualifications"].append(get_ma_qualifications(ma))
         # TODO Implement
         ma_dict["sex"].append(None)
-        experiences = get_experiences(ma["id"], clients_dict, experience_log, date)
+        experiences = get_experiences(ma["id"], clients_dict, experience_log, date, global_schools_mapping)
         ma_dict["cl_experience"].append(experiences["client_experience"])
         ma_dict["school_experience"].append(experiences["school_experience"])
         ma_dict["short_term_cl_experience"].append(experiences["short_term_client_experience"])
@@ -55,7 +55,7 @@ def get_short_term_client_experience_dict(ma_experience: Dict, clients_dict: Dic
     
     return experience_dict
     
-def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict], date: str) -> Dict[str, int]:
+def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict], date: str, global_schools_mapping: Dict) -> Dict[str, int]:
     
     experience_dict = {
         "client_experience": {},
@@ -74,7 +74,7 @@ def get_experiences(ma_id: str, clients_dict: Dict, experience_log: List[Dict], 
     
     experience_dict["client_experience"] = get_client_experience_dict(ma_experience, clients_dict)
     experience_dict["short_term_client_experience"] = get_short_term_client_experience_dict(ma_experience, clients_dict, date)
-    experience_dict["school_experience"] = get_school_experience_dict(ma_experience, clients_dict)
+    experience_dict["school_experience"] = get_school_experience_dict(ma_experience, clients_dict, global_schools_mapping)
     
     return experience_dict
 
@@ -92,14 +92,22 @@ def get_client_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[
     
     return experience_dict
 
-def get_school_experience_dict(ma_experience: Dict, clients_dict: Dict) -> Dict[str, int]:
+def get_school_experience_dict(ma_experience: Dict, clients_dict: Dict, global_schools_mapping: Dict) -> Dict[str, int]:
     
     experience_dict = {}
         # Get the school experience data
     experience_data = ma_experience.get("school_experience", {})
     
-    # Get unique school IDs from clients
-    school_ids = set(clients_dict.get("school"))
+    # Reverse the global mapping locally and map client schools to school ids.
+    reversed_school_mapping = {
+        value: key for key, value in global_schools_mapping.items() if value is not None
+    }
+    client_schools = clients_dict.get("school", [])
+    school_ids = {
+        reversed_school_mapping.get(school, school)
+        for school in client_schools
+        if school is not None
+    }
     
     # Count experience for each school
     for school_id in school_ids:

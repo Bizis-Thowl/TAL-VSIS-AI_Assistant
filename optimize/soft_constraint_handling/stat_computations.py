@@ -1,5 +1,4 @@
 import numpy as np
-from datetime import datetime
 import json
 
 def compute_availability_gap_stats(employees, clients):
@@ -8,7 +7,7 @@ def compute_availability_gap_stats(employees, clients):
     for i, employee in employees.iterrows():
         for j, client in clients.iterrows():
             availability_gap = (
-                datetime.strptime(employee["available_until"], "%Y-%m-%d") - datetime.strptime(client["available_until"], "%Y-%m-%d")
+                employee["available_until"] - client["available_until"]
             ).days
             availability_gaps.append(availability_gap)
     return np.mean(availability_gaps), (np.std(availability_gaps) if availability_gaps else (0, 1))
