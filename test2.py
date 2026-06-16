@@ -16,8 +16,9 @@ OUTPUT_FILE = "data/experience_log.json"  # Where the adapted list is saved
 
 if __name__ == "__main__":
     
-    start_date = date(2026, 3, 1)
-    end_date = date.today() + timedelta(days=1)
+    start_date = date(2026, 3, 2)
+    end_date = date(2026, 5, 29)
+    # end_date = date.today() + timedelta(days=1)
     endpoint_key = 'vertretungsfall'
     
     request_info = [{'user': spec['user'], 'pw': spec['pw'], 'url': base_url_missy.format(domain=spec['domain'])} for spec in request_specs]

@@ -2,8 +2,6 @@ from fetching.missy_fetching import get_vertretungen
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
 import numpy as np
 import json
@@ -27,6 +25,8 @@ from learning.model import AbnormalityModel
 from data_processing.features_retrieval.create_single_df import create_single_df
 from data_processing.features_retrieval.create_replacements import create_replacements
 
+from analysis.client_day_logging import build_client_day_log_rows, rows_to_dataframe
+
 load_dotenv(override=True)
 
 request_specs = os.getenv("REQUEST_INFO")
@@ -49,7 +49,8 @@ clients = get_clients(request_info)
 mas = get_mas(request_info)
 schools = get_schools(request_info)
 prio_assignments = get_prio_assignments(request_info)
-experience_log = get_experience_log()
+# experience_log = get_experience_log()
+experience_log = []
 
 global_schools_mapping = {
     school.get("id", None): school.get("systemuebergreifendeid", None)
@@ -136,198 +137,131 @@ def _to_json_serializable(value):
 
 
 def _serialize_client_row(client_row: pd.Series) -> dict:
-    return {column: _to_json_serializable(value) for column, value in client_row.items()}
-
-
-def _init_client_assignment_tracking() -> dict:
     return {
-        "labels": {
-            "priority_10": {},
-            "other_priorities": {},
-            "all_priorities": {},
-        },
-        "recommendations": {
-            "priority_10": {},
-            "other_priorities": {},
-            "all_priorities": {},
-        },
+        column: _to_json_serializable(value) for column, value in client_row.items()
     }
 
 
-def _update_client_assignment_tracking(
-    tracking: dict,
-    clients_df: pd.DataFrame,
-    assigned_client_ids: set,
-    analysis_type: str,
-):
-    for _, client_row in clients_df.iterrows():
-        client_id = client_row.get("id")
-        if client_id is None:
+def _serialize_dataframe(df: pd.DataFrame) -> list[dict]:
+    if df is None or df.empty:
+        return []
+    return [
+        {column: _to_json_serializable(value) for column, value in row.items()}
+        for row in df.to_dict(orient="records")
+    ]
+
+
+def _get_next_run_file(output_dir: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    existing = []
+    for filename in os.listdir(output_dir):
+        if not filename.startswith("analysis_run_") or not filename.endswith(".json"):
             continue
+        numeric_part = filename[len("analysis_run_") : -len(".json")]
+        if numeric_part.isdigit():
+            existing.append(int(numeric_part))
 
-        group_names = ["all_priorities"]
-        if client_row.get("priority") == 10:
-            group_names.append("priority_10")
-        else:
-            group_names.append("other_priorities")
-
-        is_assigned = client_id in assigned_client_ids
-        serialized_row = _serialize_client_row(client_row)
-
-        for group_name in group_names:
-            group_tracking = tracking[analysis_type][group_name]
-            if client_id not in group_tracking:
-                group_tracking[client_id] = {
-                    "client": serialized_row,
-                    "assigned_count": 0,
-                    "not_assigned_count": 0,
-                }
-            if is_assigned:
-                group_tracking[client_id]["assigned_count"] += 1
-            else:
-                group_tracking[client_id]["not_assigned_count"] += 1
+    next_number = max(existing, default=0) + 1
+    return os.path.join(output_dir, f"analysis_run_{next_number:04d}.json")
 
 
-def _finalize_client_assignment_tracking(tracking: dict) -> dict:
-    output = {}
-    for analysis_type, groups in tracking.items():
-        output[analysis_type] = {}
-        for group_name, clients in groups.items():
-            rows = []
-            for client_id, entry in clients.items():
-                assigned_count = int(entry["assigned_count"])
-                not_assigned_count = int(entry["not_assigned_count"])
-                total_count = assigned_count + not_assigned_count
-                rows.append(
-                    {
-                        "client_id": client_id,
-                        "group": group_name,
-                        "client": entry["client"],
-                        "assigned_count": assigned_count,
-                        "not_assigned_count": not_assigned_count,
-                        "total_count": total_count,
-                        "assignment_percentage": (
-                            float((assigned_count / total_count) * 100)
-                            if total_count > 0
-                            else None
-                        ),
-                    }
-                )
-            rows.sort(
-                key=lambda row: (
-                    row["not_assigned_count"],
-                    -row["assigned_count"],
-                    str(row["client_id"]),
-                ),
-                reverse=True,
-            )
-            output[analysis_type][group_name] = rows
-    return output
+def _init_experience_maps(experience_log: list[dict]) -> tuple[dict, dict]:
+    ma_client_map = {}
+    ma_school_map = {}
+
+    for entry in experience_log:
+        ma_id = entry.get("ma")
+        if ma_id is None:
+            continue
+        ma_client_map[ma_id] = entry.get("client_experience", {})
+        ma_school_map[ma_id] = entry.get("school_experience", {})
+
+    return ma_client_map, ma_school_map
 
 
-def compute_priority_stats(
-    df: pd.DataFrame, group_name: str, total_clients_count: int = 0
-) -> dict:
-    assigned_count = int(len(df))
-    assigned_percentage = (
-        float((assigned_count / total_clients_count) * 100)
-        if total_clients_count > 0
-        else None
-    )
+def _append_experience(
+    ma_client_map: dict,
+    ma_school_map: dict,
+    ma_id: str,
+    client_id: str,
+    school_id: str,
+    date_str: str,
+) -> None:
+    if ma_id not in ma_client_map:
+        ma_client_map[ma_id] = {}
+    if ma_id not in ma_school_map:
+        ma_school_map[ma_id] = {}
 
-    if df.empty:
-        return {
-            "group": group_name,
-            "entries_count": assigned_count,
-            "total_clients_count": int(total_clients_count),
-            "assigned_percentage": assigned_percentage,
-            "experience_gt_1_count": {
-                "cl_experience": 0,
-                "school_experience": 0,
-                "short_term_cl_experience": 0,
-            },
-            "experience_average": {
-                "cl_experience": None,
-                "school_experience": None,
-                "short_term_cl_experience": None,
-            },
-            "ma_availability_true_count": 0,
-            "qualifications_met_true_count": 0,
-            "availability_gap_positive_count": 0,
-            "availability_gap_positive_average": None,
-            "average_time_to_school": None,
-            "mobility_percentage": None,
+    if client_id not in ma_client_map[ma_id]:
+        ma_client_map[ma_id][client_id] = []
+    if date_str not in ma_client_map[ma_id][client_id]:
+        ma_client_map[ma_id][client_id].append(date_str)
+
+    if school_id not in ma_school_map[ma_id]:
+        ma_school_map[ma_id][school_id] = []
+    if date_str not in ma_school_map[ma_id][school_id]:
+        ma_school_map[ma_id][school_id].append(date_str)
+
+
+def _materialize_experience_log(ma_client_map: dict, ma_school_map: dict) -> list[dict]:
+    ma_ids = set(ma_client_map.keys()) | set(ma_school_map.keys())
+    return [
+        {
+            "ma": ma_id,
+            "client_experience": ma_client_map.get(ma_id, {}),
+            "school_experience": ma_school_map.get(ma_id, {}),
         }
-
-    cl_experience = _safe_numeric_series(df, "cl_experience")
-    school_experience = _safe_numeric_series(df, "school_experience")
-    short_term_cl_experience = _safe_numeric_series(df, "short_term_cl_experience")
-    ma_availability = _safe_bool_series(df, "ma_availability")
-    qualifications_met = _safe_bool_series(df, "qualifications_met")
-    availability_gap = _safe_numeric_series(df, "availability_gap")
-    time_to_school = _safe_numeric_series(df, "timeToSchool")
-    mobility = _safe_bool_series(df, "mobility")
-    availability_gap_positive = availability_gap[availability_gap > 0]
-
-    return {
-        "group": group_name,
-        "entries_count": assigned_count,
-        "total_clients_count": int(total_clients_count),
-        "assigned_percentage": assigned_percentage,
-        "experience_gt_1_count": {
-            "cl_experience": int((cl_experience > 1).sum()),
-            "school_experience": int((school_experience > 1).sum()),
-            "short_term_cl_experience": int((short_term_cl_experience > 1).sum()),
-        },
-        "experience_average": {
-            "cl_experience": float(cl_experience.mean()) if not cl_experience.dropna().empty else None,
-            "school_experience": float(school_experience.mean()) if not school_experience.dropna().empty else None,
-            "short_term_cl_experience": float(short_term_cl_experience.mean()) if not short_term_cl_experience.dropna().empty else None,
-        },
-        "ma_availability_true_count": int(ma_availability.sum()),
-        "qualifications_met_true_count": int(qualifications_met.sum()),
-        "availability_gap_positive_count": int((availability_gap > 0).sum()),
-        "availability_gap_positive_average": (
-            float(availability_gap_positive.mean())
-            if not availability_gap_positive.dropna().empty
-            else None
-        ),
-        "average_time_to_school": (
-            float(time_to_school.mean()) if not time_to_school.dropna().empty else None
-        ),
-        "mobility_percentage": float(mobility.mean() * 100),
-    }
+        for ma_id in ma_ids
+    ]
 
 
-def build_df_analysis(
-    df: pd.DataFrame, clients_df: pd.DataFrame, df_type: str, date_value
-) -> dict:
-    date_str = date_value.strftime("%Y-%m-%d") if isinstance(date_value, datetime) else str(date_value)
+weights_list = {
+    "baseline": {
+        "unassigned": 1000,
+        "travel_time": 0,
+        "time_window": 0,
+        "priority": 0,
+        "abnormality": 0,
+        "client_experience": 0,
+        "school_experience": 0,
+        "short_term_client_experience": 0,
+        "availability_gap": 0,
+    },
+    "default":{
+        "unassigned": 1000,
+        "travel_time": 30,
+        "time_window": 10,
+        "priority": 1000,
+        "abnormality": 200,
+        "client_experience": 1000,
+        "school_experience": 333,
+        "short_term_client_experience": 1000,
+        "availability_gap": 100,
+    },
+    "no-dist":{
+        "unassigned": 1000,
+        "travel_time": 0,
+        "time_window": 10,
+        "priority": 1000,
+        "abnormality": 200,
+        "client_experience": 1000,
+        "school_experience": 333,
+        "short_term_client_experience": 1000,
+        "availability_gap": 100,
+    },
+    "no-exp":{
+        "unassigned": 1000,
+        "travel_time": 30,
+        "time_window": 10,
+        "priority": 1000,
+        "abnormality": 200,
+        "client_experience": 1000,
+        "school_experience": 333,
+        "short_term_client_experience": 1000,
+        "availability_gap": 100,
+    },
+}
 
-    priority_values = _safe_numeric_series(df, "priority")
-    priority_10_df = df[priority_values == 10]
-    priority_other_df = df[priority_values != 10]
-
-    client_priority_values = _safe_numeric_series(clients_df, "priority")
-    total_priority_10_count = int((client_priority_values == 10).sum())
-    total_other_priorities_count = int((client_priority_values != 10).sum())
-    total_all_priorities_count = int(len(clients_df))
-
-    return {
-        "type": df_type,
-        "date": date_str,
-        "stats": {
-            "priority_10": compute_priority_stats(
-                priority_10_df, "priority_10", total_priority_10_count
-            ),
-            "other_priorities": compute_priority_stats(
-                priority_other_df, "other_priorities", total_other_priorities_count
-            ),
-            "all_priorities": compute_priority_stats(
-                df, "all_priorities", total_all_priorities_count
-            ),
-        },
-    }
 
 def main():
 
@@ -339,10 +273,11 @@ def main():
         experience_log,
         global_schools_mapping,
     )
-    comparison = []
-    client_assignment_tracking = _init_client_assignment_tracking()
-    start_date = "2026-03-23"
-    end_date = "2026-04-27"
+    output_by_date = {}
+    client_day_logs = {weight_name: [] for weight_name in weights_list}
+    ma_client_map, ma_school_map = _init_experience_maps(experience_log)
+    start_date = "2026-03-02"
+    end_date = "2026-05-29"
     for relevant_date in pd.date_range(start=start_date, end=end_date):
         relevant_date = relevant_date.strftime("%Y-%m-%d")
 
@@ -352,7 +287,7 @@ def main():
             continue
 
         relevant_date = datetime.strptime(relevant_date, "%Y-%m-%d")
-        
+
         assigned_records = list(
             filter(lambda x: x.get("klientzubegleiten") != None, vertretungen)
         )
@@ -362,6 +297,8 @@ def main():
                 "klient": elem["klientzubegleiten"]["id"],
             }
             for elem in assigned_records
+            if elem.get("mavertretend") != None
+            and elem.get("klientzubegleiten") != None
         ]
         absent_ma_records = list(
             filter(
@@ -375,12 +312,13 @@ def main():
                 **elem,
                 "mafrei": {"id": elem.get("mavertretend").get("id")},
             }
-            for elem in assigned_records if elem.get("mavertretend") != None
+            for elem in assigned_records
+            if elem.get("mavertretend") != None
         ]
 
         free_ma_records = merge_consecutive_free_ma_records(
-            list(filter(lambda x: x.get("mafrei") != None, vertretungen)) +
-            free_and_assigned_ma_records
+            list(filter(lambda x: x.get("mafrei") != None, vertretungen))
+            + free_and_assigned_ma_records
         )
 
         absent_ma_ids = [elem["maabwesend"]["id"] for elem in absent_ma_records]
@@ -393,7 +331,7 @@ def main():
         }
         all_open_clients = {
             **all_open_clients,
-            **{elem["ma"]: elem["klient"] for elem in assignments}
+            **{elem["ma"]: elem["klient"] for elem in assignments},
         }
 
         free_mas = [
@@ -411,14 +349,17 @@ def main():
                 "until": datetime.strptime(elem.get("enddatum", None), "%Y-%m-%d"),
                 "ma_blacklist": elem.get("mavorschlagblacklist", []),
             }
-            for elem in absent_ma_records if all_open_clients.get(elem["maabwesend"]["id"]) != None
+            for elem in absent_ma_records
+            if all_open_clients.get(elem["maabwesend"]["id"]) != None
         ]
         open_client_ids = [elem["id"] for elem in open_clients]
 
-        
         open_client_ids = list(set(open_client_ids))
         free_ma_ids = list(set(free_ma_ids + [elem["ma"] for elem in assignments]))
 
+        data_processor.experience_log = _materialize_experience_log(
+            ma_client_map, ma_school_map
+        )
         clients_df, mas_df = data_processor.create_day_dataset(
             open_client_ids, free_ma_ids, relevant_date
         )
@@ -442,19 +383,41 @@ def main():
         )
 
         abnormality_model = AbnormalityModel()
+        date_str = relevant_date.strftime("%Y-%m-%d")
+        default_optimizer = None
 
-        optimizer = Optimizer(mas_df, clients_df, abnormality_model)
-        optimizer.create_model()
+        for weight_name, weights in weights_list.items():
+            log_optimizer = Optimizer(mas_df, clients_df, abnormality_model)
+            log_optimizer.create_model(weights=weights)
+            if log_optimizer.solve_model() is None:
+                continue
+            day_log_rows = build_client_day_log_rows(
+                log_optimizer,
+                clients_df,
+                mas_df,
+                date_str,
+                ma_client_map,
+                ma_school_map,
+                weight_name,
+            )
+            client_day_logs[weight_name].extend(day_log_rows)
+            if weight_name == "default":
+                default_optimizer = log_optimizer
 
-        optimizer.solve_model()
-        assigned_pairs, _ = optimizer.process_results()
+        if default_optimizer is None:
+            default_optimizer = Optimizer(mas_df, clients_df, abnormality_model)
+            default_optimizer.create_model(weights=weights_list["default"])
+            if default_optimizer.solve_model() is None:
+                continue
+
+        assigned_pairs, _ = default_optimizer.process_results()
 
         assigned_pairs = {elem["ma"]: elem["klient"] for elem in assigned_pairs}
         assignments = {elem["ma"]: elem["klient"] for elem in assignments}
 
         replacements = create_replacements(assignments)
         replacement_recommendations = create_replacements(assigned_pairs)
-        
+
         print(replacements)
         print(replacement_recommendations)
 
@@ -464,43 +427,55 @@ def main():
         single_df_recommendations = create_single_df(
             clients_df, mas_df, replacement_recommendations, relevant_date
         )
-
-        _update_client_assignment_tracking(
-            client_assignment_tracking,
-            clients_df,
-            set(assignments.values()),
-            "labels",
+        client_school_map = (
+            clients_df.set_index("id")["school"].to_dict()
+            if "school" in clients_df.columns
+            else {}
         )
-        _update_client_assignment_tracking(
-            client_assignment_tracking,
-            clients_df,
-            set(assigned_pairs.values()),
-            "recommendations",
-        )
+        if isinstance(replacement_recommendations, pd.DataFrame):
+            for _, rec_row in replacement_recommendations.iterrows():
+                ma_id = rec_row.get("mas")
+                client_id = rec_row.get("clients")
+                if ma_id is None or client_id is None:
+                    continue
+                school_id = client_school_map.get(client_id)
+                if school_id is None:
+                    continue
+                _append_experience(
+                    ma_client_map,
+                    ma_school_map,
+                    ma_id,
+                    client_id,
+                    school_id,
+                    date_str,
+                )
 
-        comparison.append(
-            {
-                "date": relevant_date.strftime("%Y-%m-%d"),
-                "labels": build_df_analysis(
-                    single_df_labels, clients_df, "labels", relevant_date
-                ),
-                "recommendations": build_df_analysis(
-                    single_df_recommendations, clients_df, "recommendations", relevant_date
-                ),
-            }
-        )
+        output_by_date[date_str] = {
+            "labels": _serialize_dataframe(single_df_labels),
+            "recommendations": _serialize_dataframe(single_df_recommendations),
+            "clients_available": _serialize_dataframe(clients_df),
+            "mas_available": _serialize_dataframe(mas_df),
+        }
 
-    output_file = "data/comparison_analysis.json"
+    output_dir = "data/analysis_runs"
+    output_file = _get_next_run_file(output_dir)
     with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(comparison, f, ensure_ascii=False, indent=2)
+        json.dump(output_by_date, f, ensure_ascii=False, indent=2)
 
-    client_tracking_output = _finalize_client_assignment_tracking(client_assignment_tracking)
-    tracking_output_file = "data/comparison_client_assignment_tracking.json"
-    with open(tracking_output_file, "w", encoding="utf-8") as f:
-        json.dump(client_tracking_output, f, ensure_ascii=False, indent=2)
+    print(f"Saved analysis run output to {output_file}")
 
-    print(f"Saved comparison analysis to {output_file}")
-    print(f"Saved client assignment tracking to {tracking_output_file}")
+    log_output_dir = "data/analysis_client_day_logs"
+    os.makedirs(log_output_dir, exist_ok=True)
+    run_id = os.path.basename(output_file).replace("analysis_run_", "").replace(
+        ".json", ""
+    )
+    for weight_name, rows in client_day_logs.items():
+        log_df = rows_to_dataframe(rows)
+        log_path = os.path.join(
+            log_output_dir, f"client_day_log_{run_id}_{weight_name}.csv"
+        )
+        log_df.to_csv(log_path, index=False, encoding="utf-8")
+        print(f"Saved client-day log for '{weight_name}' to {log_path}")
 
 
 if __name__ == "__main__":

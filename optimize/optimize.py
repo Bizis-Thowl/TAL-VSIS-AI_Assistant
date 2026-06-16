@@ -1,7 +1,7 @@
 import cpmpy as cp
 import pandas as pd
 import json
-from optimize.utils.has_required_qualifications import has_required_qualifications
+from optimize.utils.is_eligible_pair import is_eligible_pair
 from optimize.SoftConstraintHandler import SoftConstrainedHandler
 import logging
 from utils.append_to_json_file import append_to_json_file
@@ -25,22 +25,18 @@ class Optimizer:
         # Model instance
         self.model = cp.Model()
         self.abnormality_model = abnormality_model
-
         self.employees = employees
         self.clients = clients
+        self.soft_constrained_handler = None
 
-    def create_model(self):
+    def create_model(self, weights=None):
 
         self.learner_dataset = {}
 
         # Create decision variables and filter based on eligibility
         for i, emp in self.employees.iterrows():
             for j, client in self.clients.iterrows():
-                if client["school"] in json.loads(
-                    emp["timeToSchool"]
-                ) and has_required_qualifications(
-                    emp["qualifications"], client["neededQualifications"]
-                ) and (emp["id"] not in [elem["id"] for elem in client["ma_blacklist"]]):
+                if is_eligible_pair(emp, client):
                     # Define a binary variable for this assignment
                     self.assignments[(i, j)] = cp.boolvar(name=f"assign_E{i}_C{j}")
                     self.assignments[(i, j)].set_description(
@@ -78,7 +74,9 @@ class Optimizer:
             self.model,
             self.abnormality_model,
             self.learner_dataset,
+            weights=weights
         )
+        self.soft_constrained_handler = soft_constrained_handler
         self.model = soft_constrained_handler.set_up_objectives()
 
         # Constraints: Each employee and client can only be assigned once
@@ -128,13 +126,7 @@ class Optimizer:
             print(f"Error: {e}")
             return self.model.objective_
 
-    def process_results(self):
-        store_dict = {
-            "assigned_pairs": None,
-            "unassigned_clients": None,
-            "avg_travel_time": None,
-            "avg_priority": None,
-        }
+    def get_solution_assignments(self):
         assigned_pairs = []
         for (i, j), var in self.assignments.items():
             if var.value() == 1:
@@ -144,16 +136,26 @@ class Optimizer:
                         "klient": self.clients.iloc[j]["id"],
                     }
                 )
-                print(
-                    f"Employee {self.employees.iloc[i]['id']} assigned to Client {self.clients.iloc[j]['id']}"
-                )
 
-        # Output the unassigned clients
         unassigned_clients_list = [
             self.clients.iloc[j]["id"]
             for j in range(len(self.clients))
             if self.unassigned_clients[j].value() == 1
         ]
+        return assigned_pairs, unassigned_clients_list
+
+    def process_results(self):
+        store_dict = {
+            "assigned_pairs": None,
+            "unassigned_clients": None,
+            "avg_travel_time": None,
+            "avg_priority": None,
+        }
+        assigned_pairs, unassigned_clients_list = self.get_solution_assignments()
+        for pair in assigned_pairs:
+            print(
+                f"Employee {pair['ma']} assigned to Client {pair['klient']}"
+            )
 
         print("\nUnassigned Clients:")
         print(unassigned_clients_list)

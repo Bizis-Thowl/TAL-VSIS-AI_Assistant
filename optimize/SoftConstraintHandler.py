@@ -67,6 +67,9 @@ class SoftConstrainedHandler:
             "time_window": 10,
             "priority": 1000,
             "abnormality": 200,
+            # "client_experience": 1000,
+            # "school_experience": 333,
+            # "short_term_client_experience": 1000,
             "client_experience": 300,
             "school_experience": 100,
             "short_term_client_experience": 300,
@@ -238,6 +241,141 @@ class SoftConstrainedHandler:
         return self.weights["availability_gap"] * sum(
             self._compute_availability_gap(i, j) for (i, j) in self.assignments
         )
+
+    def _scaled_travel_time(self, i, j):
+        employee = self.employees.iloc[i]
+        client_school = self.clients.iloc[j]["school"]
+        time_to_school = json.loads(employee["timeToSchool"]).get(client_school, 0)
+        normalized_time = self._normalize(
+            time_to_school, self.travel_time_mean, self.travel_time_std
+        )
+        return int(round(normalized_time * scaling_factor))
+
+    def _scaled_time_window_diff(self, i, j):
+        employee_avail_end = self.employees.iloc[i]["availability"][1]
+        client_time_window = self.clients.iloc[j]["timeWindow"]
+        if client_time_window is None:
+            return 0
+        client_time_end = client_time_window[1]
+        time_diff = employee_avail_end - client_time_end
+        normalized_diff = self._normalize(
+            time_diff, self.time_window_mean, self.time_window_std
+        )
+        return int(round(normalized_diff * scaling_factor))
+
+    def _scaled_priority(self, i, j):
+        client_priority = self.clients.iloc[j]["priority"]
+        normalized_priority = self._normalize(
+            client_priority, self.priority_mean, self.priority_std
+        )
+        return int(round(normalized_priority * scaling_factor))
+
+    def _scaled_client_experience(self, i, j):
+        employee = self.employees.iloc[i]
+        client_id = self.clients.iloc[j]["id"]
+        client_experience = employee["cl_experience"].get(client_id, 0)
+        normalized_experience = self._normalize(
+            client_experience, self.client_experience_mean, self.client_experience_std
+        )
+        return int(round(-normalized_experience * scaling_factor))
+
+    def _scaled_school_experience(self, i, j):
+        employee = self.employees.iloc[i]
+        client_school = self.clients.iloc[j]["school"]
+        school_experience = employee["school_experience"].get(client_school, 0)
+        normalized_experience = self._normalize(
+            school_experience, self.school_experience_mean, self.school_experience_std
+        )
+        return int(round(-normalized_experience * scaling_factor))
+
+    def _scaled_short_term_client_experience(self, i, j):
+        employee = self.employees.iloc[i]
+        client_id = self.clients.iloc[j]["id"]
+        short_term_experience = employee["short_term_cl_experience"].get(client_id, 0)
+        normalized_experience = self._normalize(
+            short_term_experience,
+            self.short_term_client_experience_mean,
+            self.short_term_client_experience_std,
+        )
+        return int(round(-normalized_experience * scaling_factor))
+
+    def _scaled_availability_gap(self, i, j):
+        employee = self.employees.iloc[i]
+        client = self.clients.iloc[j]
+        availability_gap = employee["available_until"] - client["available_until"]
+        normalized_gap = self._normalize(
+            availability_gap.days, self.availability_gap_mean, self.availability_gap_std
+        )
+        return int(round(-normalized_gap * scaling_factor))
+
+    def _scaled_abnormality(self, i, j):
+        return self._compute_abnormality(i, j)
+
+    def _find_assigned_employee_index(self, client_idx):
+        for i in range(len(self.employees)):
+            if (i, client_idx) in self.assignments:
+                if self.assignments[(i, client_idx)].value() == 1:
+                    return i
+        return None
+
+    def compute_per_client_objective_contributions(self):
+        objective_keys = [
+            "unassigned",
+            "travel_time",
+            "time_window",
+            "priority",
+            "client_experience",
+            "school_experience",
+            "short_term_client_experience",
+            "availability_gap",
+        ]
+        if include_abnormality:
+            objective_keys.append("abnormality")
+
+        contributions = []
+        for j in range(len(self.clients)):
+            client_contrib = {key: 0 for key in objective_keys}
+            if self.unassigned_clients[j].value() == 1:
+                client_contrib["unassigned"] = (
+                    self.weights["unassigned"] * scaling_factor
+                )
+            else:
+                employee_idx = self._find_assigned_employee_index(j)
+                if employee_idx is not None:
+                    i = employee_idx
+                    client_contrib["travel_time"] = (
+                        self.weights["travel_time"] * self._scaled_travel_time(i, j)
+                    )
+                    client_contrib["time_window"] = (
+                        self.weights["time_window"]
+                        * self._scaled_time_window_diff(i, j)
+                    )
+                    client_contrib["priority"] = (
+                        self.weights["priority"] * self._scaled_priority(i, j)
+                    )
+                    client_contrib["client_experience"] = (
+                        self.weights["client_experience"]
+                        * self._scaled_client_experience(i, j)
+                    )
+                    client_contrib["school_experience"] = (
+                        self.weights["school_experience"]
+                        * self._scaled_school_experience(i, j)
+                    )
+                    client_contrib["short_term_client_experience"] = (
+                        self.weights["short_term_client_experience"]
+                        * self._scaled_short_term_client_experience(i, j)
+                    )
+                    client_contrib["availability_gap"] = (
+                        self.weights["availability_gap"]
+                        * self._scaled_availability_gap(i, j)
+                    )
+                    if include_abnormality:
+                        client_contrib["abnormality"] = (
+                            self.weights["abnormality"]
+                            * self._scaled_abnormality(i, j)
+                        )
+            contributions.append(client_contrib)
+        return contributions
 
     def set_up_objectives(self):
         """Combine and set all optimization objectives in the model."""

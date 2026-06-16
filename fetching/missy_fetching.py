@@ -9,11 +9,15 @@ from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 
-def get_vertretungen(request_info: List[Dict[str, str]], date: str, use_cache = False) -> List[Any]:
+def get_vertretungen(request_info: List[Dict[str, str]], date: str, use_cache = False, use_vertretungen_all: bool = True) -> List[Any]:
     
     endpoint_key = 'vertretungsfall'
     
-    vertretungen = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key, date=date, add_global_info=True)
+    if use_vertretungen_all:
+        vertretungen = read_file("vertretungsfall_all") or []
+        vertretungen = filter_records_w_date(vertretungen, date)
+    else:
+        vertretungen = fetch_many(request_info, use_cache=use_cache, endpoint_key=endpoint_key, date=date, add_global_info=True)
     
     return vertretungen
 
