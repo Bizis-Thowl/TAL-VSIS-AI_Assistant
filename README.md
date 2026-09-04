@@ -4,6 +4,17 @@
 
 Dieses Repository enthält den KI- und Optimierungskern des TALÖVSIS-Demonstrators. Der Python-Code ruft relevante Planungsdaten aus den angebundenen Fachsystemen ab, bereitet sie auf und erzeugt unter Berücksichtigung fachlicher Randbedingungen mehrere mögliche Vertretungszuordnungen. Ergänzende lernende und erklärende Komponenten dienen dazu, ungewöhnliche Zuordnungen zu erkennen und die erzeugten Empfehlungen nachvollziehbar bereitzustellen. Das Repository bildet damit insbesondere das Backend des AI Assistant ab und nicht die vollständige Fachanwendung beziehungsweise deren Benutzeroberfläche.
 
+Das Projekt wird gefördert durch:  
+EFRE/JTF-Programm NRW 2021-2027, Ministerium für Wirtschaft, Industrie, Klimaschutz und Energie des Landes Nordrhein-Westfalen (MWIKE NRW)  
+Förderlinien: NEXT.IN.NRW
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/Kofinanziert%20von%20der%20EU_RGB_NEGATIV.png">
+  <img src="assets/Kofinanziert%20von%20der%20EU_RGB_POSITIV.png" alt="Kofinanziert von der Europäischen Union" width="320">
+</picture>
+
+<img src="assets/ak_mwike_mit_zusatz_cmyk.jpg" alt="Ministerium für Wirtschaft, Industrie, Klimaschutz und Energie des Landes Nordrhein-Westfalen (MWIKE NRW)" width="320">
+
 ## Setup (For Linux - also deployable on Windows with small adaptations)
 
 ### Install UV for Virtual Environment (Recommended)
