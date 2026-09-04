@@ -7,6 +7,9 @@ log_store = "store"
 
 include_abnormality = False
 
+# Max seconds per OR-Tools solve; prevents hung optimization runs
+solver_time_limit_seconds = 180
+
 # Set to False for a live test today
 relevant_date_test = "2025-11-25"
 

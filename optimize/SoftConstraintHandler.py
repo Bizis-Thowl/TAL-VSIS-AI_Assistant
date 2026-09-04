@@ -318,8 +318,8 @@ class SoftConstrainedHandler:
                     return i
         return None
 
-    def compute_per_client_objective_contributions(self):
-        objective_keys = [
+    def _objective_keys(self):
+        keys = [
             "unassigned",
             "travel_time",
             "time_window",
@@ -330,11 +330,68 @@ class SoftConstrainedHandler:
             "availability_gap",
         ]
         if include_abnormality:
-            objective_keys.append("abnormality")
+            keys.append("abnormality")
+        return keys
+
+    def _soft_contributions_for_pair(self, i, j):
+        client_contrib = {key: 0 for key in self._objective_keys()}
+        client_contrib["travel_time"] = (
+            self.weights["travel_time"] * self._scaled_travel_time(i, j)
+        )
+        client_contrib["time_window"] = (
+            self.weights["time_window"] * self._scaled_time_window_diff(i, j)
+        )
+        client_contrib["priority"] = (
+            self.weights["priority"] * self._scaled_priority(i, j)
+        )
+        client_contrib["client_experience"] = (
+            self.weights["client_experience"] * self._scaled_client_experience(i, j)
+        )
+        client_contrib["school_experience"] = (
+            self.weights["school_experience"] * self._scaled_school_experience(i, j)
+        )
+        client_contrib["short_term_client_experience"] = (
+            self.weights["short_term_client_experience"]
+            * self._scaled_short_term_client_experience(i, j)
+        )
+        client_contrib["availability_gap"] = (
+            self.weights["availability_gap"] * self._scaled_availability_gap(i, j)
+        )
+        if include_abnormality:
+            client_contrib["abnormality"] = (
+                self.weights["abnormality"] * self._scaled_abnormality(i, j)
+            )
+        return client_contrib
+
+    def compute_per_client_objective_contributions_for_pairs(
+        self, assigned_pairs
+    ):
+        assignment_by_client = {pair["klient"]: pair["ma"] for pair in assigned_pairs}
+        ma_id_to_idx = {
+            self.employees.iloc[i]["id"]: i for i in range(len(self.employees))
+        }
 
         contributions = []
         for j in range(len(self.clients)):
-            client_contrib = {key: 0 for key in objective_keys}
+            client_contrib = {key: 0 for key in self._objective_keys()}
+            client_id = self.clients.iloc[j]["id"]
+            assigned_ma_id = assignment_by_client.get(client_id)
+            if assigned_ma_id is None:
+                client_contrib["unassigned"] = (
+                    self.weights["unassigned"] * scaling_factor
+                )
+            else:
+                employee_idx = ma_id_to_idx.get(assigned_ma_id)
+                if employee_idx is not None and (employee_idx, j) in self.assignments:
+                    pair_contrib = self._soft_contributions_for_pair(employee_idx, j)
+                    client_contrib.update(pair_contrib)
+            contributions.append(client_contrib)
+        return contributions
+
+    def compute_per_client_objective_contributions(self):
+        contributions = []
+        for j in range(len(self.clients)):
+            client_contrib = {key: 0 for key in self._objective_keys()}
             if self.unassigned_clients[j].value() == 1:
                 client_contrib["unassigned"] = (
                     self.weights["unassigned"] * scaling_factor
@@ -342,38 +399,9 @@ class SoftConstrainedHandler:
             else:
                 employee_idx = self._find_assigned_employee_index(j)
                 if employee_idx is not None:
-                    i = employee_idx
-                    client_contrib["travel_time"] = (
-                        self.weights["travel_time"] * self._scaled_travel_time(i, j)
+                    client_contrib.update(
+                        self._soft_contributions_for_pair(employee_idx, j)
                     )
-                    client_contrib["time_window"] = (
-                        self.weights["time_window"]
-                        * self._scaled_time_window_diff(i, j)
-                    )
-                    client_contrib["priority"] = (
-                        self.weights["priority"] * self._scaled_priority(i, j)
-                    )
-                    client_contrib["client_experience"] = (
-                        self.weights["client_experience"]
-                        * self._scaled_client_experience(i, j)
-                    )
-                    client_contrib["school_experience"] = (
-                        self.weights["school_experience"]
-                        * self._scaled_school_experience(i, j)
-                    )
-                    client_contrib["short_term_client_experience"] = (
-                        self.weights["short_term_client_experience"]
-                        * self._scaled_short_term_client_experience(i, j)
-                    )
-                    client_contrib["availability_gap"] = (
-                        self.weights["availability_gap"]
-                        * self._scaled_availability_gap(i, j)
-                    )
-                    if include_abnormality:
-                        client_contrib["abnormality"] = (
-                            self.weights["abnormality"]
-                            * self._scaled_abnormality(i, j)
-                        )
             contributions.append(client_contrib)
         return contributions
 

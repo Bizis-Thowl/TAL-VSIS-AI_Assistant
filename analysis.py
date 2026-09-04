@@ -1,14 +1,15 @@
 from fetching.missy_fetching import get_vertretungen
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pandas as pd
-import numpy as np
 import json
 
 from config import (
     base_url_missy,
     base_url_ai,
+    solver_time_limit_seconds,
 )
 from fetching.missy_fetching import (
     get_distances,
@@ -17,15 +18,16 @@ from fetching.missy_fetching import (
     get_prio_assignments,
     get_schools,
 )
-from fetching.experience_logging import get_experience_log
 
 from data_processing.data_processor import DataProcessor
 from optimize.optimize import Optimizer
-from learning.model import AbnormalityModel
-from data_processing.features_retrieval.create_single_df import create_single_df
-from data_processing.features_retrieval.create_replacements import create_replacements
 
 from analysis.client_day_logging import build_client_day_log_rows, rows_to_dataframe
+from analysis.experience_simulation import (
+    initialize_variant_experience_logs,
+    record_optimizer_assignments,
+    save_variant_experience_logs,
+)
 
 load_dotenv(override=True)
 
@@ -43,19 +45,17 @@ request_info = [
     for spec in request_specs
 ]
 
-# Retrieve mostly static data
 distances = get_distances(request_info)
 clients = get_clients(request_info)
 mas = get_mas(request_info)
 schools = get_schools(request_info)
 prio_assignments = get_prio_assignments(request_info)
-# experience_log = get_experience_log()
-experience_log = []
 
 global_schools_mapping = {
     school.get("id", None): school.get("systemuebergreifendeid", None)
     for school in schools
 }
+clients_by_id = {client["id"]: client for client in clients}
 
 
 def merge_consecutive_free_ma_records(records):
@@ -104,120 +104,81 @@ def merge_consecutive_free_ma_records(records):
     return merged_records
 
 
-def _safe_bool_series(df: pd.DataFrame, column: str) -> pd.Series:
-    if column not in df.columns:
-        return pd.Series(False, index=df.index)
-    return df[column].fillna(False).astype(bool)
-
-
-def _safe_numeric_series(df: pd.DataFrame, column: str) -> pd.Series:
-    if column not in df.columns:
-        return pd.Series(dtype="float64")
-    return pd.to_numeric(df[column], errors="coerce")
-
-
-def _to_json_serializable(value):
-    if isinstance(value, dict):
-        return {key: _to_json_serializable(val) for key, val in value.items()}
-    if isinstance(value, list):
-        return [_to_json_serializable(val) for val in value]
-    if isinstance(value, tuple):
-        return [_to_json_serializable(val) for val in value]
-    if isinstance(value, (pd.Timestamp, datetime)):
-        return value.isoformat()
-    if isinstance(value, np.integer):
-        return int(value)
-    if isinstance(value, np.floating):
-        return float(value)
-    if isinstance(value, np.bool_):
-        return bool(value)
-    if pd.isna(value):
-        return None
-    return value
-
-
-def _serialize_client_row(client_row: pd.Series) -> dict:
-    return {
-        column: _to_json_serializable(value) for column, value in client_row.items()
-    }
-
-
-def _serialize_dataframe(df: pd.DataFrame) -> list[dict]:
-    if df is None or df.empty:
-        return []
-    return [
-        {column: _to_json_serializable(value) for column, value in row.items()}
-        for row in df.to_dict(orient="records")
-    ]
-
-
-def _get_next_run_file(output_dir: str) -> str:
+def _get_next_log_run_id(output_dir: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
     existing = []
     for filename in os.listdir(output_dir):
-        if not filename.startswith("analysis_run_") or not filename.endswith(".json"):
+        if not filename.startswith("client_day_log_") or not filename.endswith(".csv"):
             continue
-        numeric_part = filename[len("analysis_run_") : -len(".json")]
-        if numeric_part.isdigit():
-            existing.append(int(numeric_part))
+        parts = filename[len("client_day_log_") : -len(".csv")].split("_", 1)
+        if parts and parts[0].isdigit():
+            existing.append(int(parts[0]))
 
-    next_number = max(existing, default=0) + 1
-    return os.path.join(output_dir, f"analysis_run_{next_number:04d}.json")
-
-
-def _init_experience_maps(experience_log: list[dict]) -> tuple[dict, dict]:
-    ma_client_map = {}
-    ma_school_map = {}
-
-    for entry in experience_log:
-        ma_id = entry.get("ma")
-        if ma_id is None:
-            continue
-        ma_client_map[ma_id] = entry.get("client_experience", {})
-        ma_school_map[ma_id] = entry.get("school_experience", {})
-
-    return ma_client_map, ma_school_map
+    return f"{max(existing, default=0) + 1:04d}"
 
 
-def _append_experience(
-    ma_client_map: dict,
-    ma_school_map: dict,
-    ma_id: str,
-    client_id: str,
-    school_id: str,
-    date_str: str,
+def _run_state_path(output_dir: str) -> str:
+    return os.path.join(output_dir, "run_state.json")
+
+
+def _variant_date_key(date_str: str, weight_name: str) -> str:
+    return f"{date_str}:{weight_name}"
+
+
+def _load_or_create_run_state(output_dir: str, start_date: str, end_date: str) -> dict:
+    state_path = _run_state_path(output_dir)
+    if os.path.exists(state_path):
+        with open(state_path, encoding="utf-8") as f:
+            state = json.load(f)
+        if state.get("start_date") == start_date and state.get("end_date") == end_date:
+            completed = len(state.get("completed", []))
+            print(
+                f"Resuming run {state['run_id']} "
+                f"({completed} variant-date combinations already saved)"
+            )
+            return state
+
+    state = {
+        "run_id": _get_next_log_run_id(output_dir),
+        "start_date": start_date,
+        "end_date": end_date,
+        "completed": [],
+    }
+    _save_run_state(output_dir, state)
+    print(f"Starting new run {state['run_id']}")
+    return state
+
+
+def _save_run_state(output_dir: str, state: dict) -> None:
+    os.makedirs(output_dir, exist_ok=True)
+    state_path = _run_state_path(output_dir)
+    tmp_path = f"{state_path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+    os.replace(tmp_path, state_path)
+
+
+def _is_variant_date_done(state: dict, date_str: str, weight_name: str) -> bool:
+    return _variant_date_key(date_str, weight_name) in state["completed"]
+
+
+def _append_log_rows(
+    output_dir: str, run_id: str, weight_name: str, rows: list
 ) -> None:
-    if ma_id not in ma_client_map:
-        ma_client_map[ma_id] = {}
-    if ma_id not in ma_school_map:
-        ma_school_map[ma_id] = {}
-
-    if client_id not in ma_client_map[ma_id]:
-        ma_client_map[ma_id][client_id] = []
-    if date_str not in ma_client_map[ma_id][client_id]:
-        ma_client_map[ma_id][client_id].append(date_str)
-
-    if school_id not in ma_school_map[ma_id]:
-        ma_school_map[ma_id][school_id] = []
-    if date_str not in ma_school_map[ma_id][school_id]:
-        ma_school_map[ma_id][school_id].append(date_str)
-
-
-def _materialize_experience_log(ma_client_map: dict, ma_school_map: dict) -> list[dict]:
-    ma_ids = set(ma_client_map.keys()) | set(ma_school_map.keys())
-    return [
-        {
-            "ma": ma_id,
-            "client_experience": ma_client_map.get(ma_id, {}),
-            "school_experience": ma_school_map.get(ma_id, {}),
-        }
-        for ma_id in ma_ids
-    ]
+    log_path = os.path.join(output_dir, f"client_day_log_{run_id}_{weight_name}.csv")
+    log_df = rows_to_dataframe(rows)
+    log_df.to_csv(
+        log_path,
+        mode="a",
+        header=not os.path.exists(log_path),
+        index=False,
+        encoding="utf-8",
+    )
 
 
 weights_list = {
     "baseline": {
-        "unassigned": 1000,
+        "unassigned": 100000,
         "travel_time": 0,
         "time_window": 0,
         "priority": 0,
@@ -227,8 +188,8 @@ weights_list = {
         "short_term_client_experience": 0,
         "availability_gap": 0,
     },
-    "default":{
-        "unassigned": 1000,
+    "default": {
+        "unassigned": 100000,
         "travel_time": 30,
         "time_window": 10,
         "priority": 1000,
@@ -238,8 +199,30 @@ weights_list = {
         "short_term_client_experience": 1000,
         "availability_gap": 100,
     },
-    "no-dist":{
-        "unassigned": 1000,
+    "default-low-exp": {
+        "unassigned": 100000,
+        "travel_time": 30,
+        "time_window": 10,
+        "priority": 1000,
+        "abnormality": 200,
+        "client_experience": 100,
+        "school_experience": 33,
+        "short_term_client_experience": 100,
+        "availability_gap": 100,
+    },
+    "default-high-dist": {
+        "unassigned": 100000,
+        "travel_time": 120,
+        "time_window": 10,
+        "priority": 1000,
+        "abnormality": 200,
+        "client_experience": 100,
+        "school_experience": 33,
+        "short_term_client_experience": 100,
+        "availability_gap": 100,
+    },
+    "no-dist": {
+        "unassigned": 100000,
         "travel_time": 0,
         "time_window": 10,
         "priority": 1000,
@@ -249,37 +232,73 @@ weights_list = {
         "short_term_client_experience": 1000,
         "availability_gap": 100,
     },
-    "no-exp":{
-        "unassigned": 1000,
+    "no-exp": {
+        "unassigned": 100000,
         "travel_time": 30,
         "time_window": 10,
         "priority": 1000,
         "abnormality": 200,
-        "client_experience": 1000,
-        "school_experience": 333,
-        "short_term_client_experience": 1000,
+        "client_experience": 0,
+        "school_experience": 0,
+        "short_term_client_experience": 0,
         "availability_gap": 100,
     },
 }
 
 
+def _run_weight_variant(weight_name, weights, mas_df, clients_df, date_str):
+    print(f"Running weight variant: {weight_name} | date: {date_str}")
+    optimizer = Optimizer(mas_df, clients_df)
+    optimizer.create_model(weights=weights)
+    if optimizer.solve_model() is None:
+        print(
+            f"No solution for '{weight_name}' on {date_str} "
+            f"(infeasible or timed out after {solver_time_limit_seconds}s)"
+        )
+        return weight_name, [], []
+    assigned_pairs, _ = optimizer.get_solution_assignments()
+    day_log_rows = build_client_day_log_rows(
+        optimizer,
+        clients_df,
+        mas_df,
+        date_str,
+        weight_name,
+    )
+    return weight_name, day_log_rows, assigned_pairs
+
+
 def main():
+    log_output_dir = "data/analysis_client_day_logs"
+    start_date = "2026-03-03"
+    end_date = "2026-05-29"
+    run_state = _load_or_create_run_state(log_output_dir, start_date, end_date)
+    run_id = run_state["run_id"]
+    weight_names = list(weights_list.keys())
+    variant_experience_logs = initialize_variant_experience_logs(
+        log_output_dir,
+        run_id,
+        weight_names,
+        clients_by_id,
+    )
 
     data_processor = DataProcessor(
         mas,
         clients,
         prio_assignments,
         distances,
-        experience_log,
+        [],
         global_schools_mapping,
     )
-    output_by_date = {}
-    client_day_logs = {weight_name: [] for weight_name in weights_list}
-    ma_client_map, ma_school_map = _init_experience_maps(experience_log)
-    start_date = "2026-03-02"
-    end_date = "2026-05-29"
+
     for relevant_date in pd.date_range(start=start_date, end=end_date):
         relevant_date = relevant_date.strftime("%Y-%m-%d")
+        date_str = relevant_date
+
+        if all(
+            _is_variant_date_done(run_state, date_str, weight_name)
+            for weight_name in weights_list
+        ):
+            continue
 
         vertretungen = get_vertretungen(request_info, relevant_date)
 
@@ -357,18 +376,11 @@ def main():
         open_client_ids = list(set(open_client_ids))
         free_ma_ids = list(set(free_ma_ids + [elem["ma"] for elem in assignments]))
 
-        data_processor.experience_log = _materialize_experience_log(
-            ma_client_map, ma_school_map
-        )
-        clients_df, mas_df = data_processor.create_day_dataset(
+        data_processor.experience_log = []
+        clients_df, _ = data_processor.create_day_dataset(
             open_client_ids, free_ma_ids, relevant_date
         )
 
-        mas_df["available_until"] = mas_df["id"].map(
-            lambda x: next(
-                (item["until"] for item in free_mas if item["id"] == x), None
-            )
-        )
         clients_df["available_until"] = clients_df["id"].map(
             lambda x: next(
                 (item["until"] for item in open_clients if item["id"] == x), None
@@ -382,100 +394,62 @@ def main():
             )
         )
 
-        abnormality_model = AbnormalityModel()
-        date_str = relevant_date.strftime("%Y-%m-%d")
-        default_optimizer = None
+        pending_variants = [
+            weight_name
+            for weight_name in weight_names
+            if not _is_variant_date_done(run_state, date_str, weight_name)
+        ]
+        if not pending_variants:
+            continue
 
-        for weight_name, weights in weights_list.items():
-            log_optimizer = Optimizer(mas_df, clients_df, abnormality_model)
-            log_optimizer.create_model(weights=weights)
-            if log_optimizer.solve_model() is None:
-                continue
-            day_log_rows = build_client_day_log_rows(
-                log_optimizer,
-                clients_df,
-                mas_df,
-                date_str,
-                ma_client_map,
-                ma_school_map,
-                weight_name,
+        variant_mas_dfs = {}
+        for weight_name in pending_variants:
+            data_processor.experience_log = variant_experience_logs[weight_name]
+            _, mas_df = data_processor.create_day_dataset(
+                open_client_ids, free_ma_ids, relevant_date
             )
-            client_day_logs[weight_name].extend(day_log_rows)
-            if weight_name == "default":
-                default_optimizer = log_optimizer
+            mas_df["available_until"] = mas_df["id"].map(
+                lambda x: next(
+                    (item["until"] for item in free_mas if item["id"] == x), None
+                )
+            )
+            variant_mas_dfs[weight_name] = mas_df
 
-        if default_optimizer is None:
-            default_optimizer = Optimizer(mas_df, clients_df, abnormality_model)
-            default_optimizer.create_model(weights=weights_list["default"])
-            if default_optimizer.solve_model() is None:
-                continue
-
-        assigned_pairs, _ = default_optimizer.process_results()
-
-        assigned_pairs = {elem["ma"]: elem["klient"] for elem in assigned_pairs}
-        assignments = {elem["ma"]: elem["klient"] for elem in assignments}
-
-        replacements = create_replacements(assignments)
-        replacement_recommendations = create_replacements(assigned_pairs)
-
-        print(replacements)
-        print(replacement_recommendations)
-
-        single_df_labels = create_single_df(
-            clients_df, mas_df, replacements, relevant_date
-        )
-        single_df_recommendations = create_single_df(
-            clients_df, mas_df, replacement_recommendations, relevant_date
-        )
-        client_school_map = (
-            clients_df.set_index("id")["school"].to_dict()
-            if "school" in clients_df.columns
-            else {}
-        )
-        if isinstance(replacement_recommendations, pd.DataFrame):
-            for _, rec_row in replacement_recommendations.iterrows():
-                ma_id = rec_row.get("mas")
-                client_id = rec_row.get("clients")
-                if ma_id is None or client_id is None:
-                    continue
-                school_id = client_school_map.get(client_id)
-                if school_id is None:
-                    continue
-                _append_experience(
-                    ma_client_map,
-                    ma_school_map,
-                    ma_id,
-                    client_id,
-                    school_id,
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    _run_weight_variant,
+                    weight_name,
+                    weights_list[weight_name],
+                    variant_mas_dfs[weight_name],
+                    clients_df,
                     date_str,
                 )
+                for weight_name in pending_variants
+            ]
+            for future in futures:
+                weight_name, day_log_rows, assigned_pairs = future.result()
+                _append_log_rows(log_output_dir, run_id, weight_name, day_log_rows)
+                variant_experience_logs[weight_name] = record_optimizer_assignments(
+                    variant_experience_logs[weight_name],
+                    assigned_pairs,
+                    clients_by_id,
+                    date_str,
+                )
+                run_state["completed"].append(
+                    _variant_date_key(date_str, weight_name)
+                )
+                _save_run_state(log_output_dir, run_state)
+                save_variant_experience_logs(
+                    log_output_dir, run_id, variant_experience_logs
+                )
+                print(
+                    f"Saved {len(day_log_rows)} rows for "
+                    f"'{weight_name}' on {date_str} "
+                    f"({len(assigned_pairs)} assignments added to experience log)"
+                )
 
-        output_by_date[date_str] = {
-            "labels": _serialize_dataframe(single_df_labels),
-            "recommendations": _serialize_dataframe(single_df_recommendations),
-            "clients_available": _serialize_dataframe(clients_df),
-            "mas_available": _serialize_dataframe(mas_df),
-        }
-
-    output_dir = "data/analysis_runs"
-    output_file = _get_next_run_file(output_dir)
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(output_by_date, f, ensure_ascii=False, indent=2)
-
-    print(f"Saved analysis run output to {output_file}")
-
-    log_output_dir = "data/analysis_client_day_logs"
-    os.makedirs(log_output_dir, exist_ok=True)
-    run_id = os.path.basename(output_file).replace("analysis_run_", "").replace(
-        ".json", ""
-    )
-    for weight_name, rows in client_day_logs.items():
-        log_df = rows_to_dataframe(rows)
-        log_path = os.path.join(
-            log_output_dir, f"client_day_log_{run_id}_{weight_name}.csv"
-        )
-        log_df.to_csv(log_path, index=False, encoding="utf-8")
-        print(f"Saved client-day log for '{weight_name}' to {log_path}")
+    print(f"Run {run_id} complete. Logs in {log_output_dir}")
 
 
 if __name__ == "__main__":

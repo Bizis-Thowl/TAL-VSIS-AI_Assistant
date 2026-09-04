@@ -10,6 +10,7 @@ import uuid
 from typing import Dict
 from datetime import datetime
 from utils.base_availability import base_availability
+from config import solver_time_limit_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class Optimizer:
 
     def __init__(
-        self, employees: pd.DataFrame, clients: pd.DataFrame, abnormality_model
+        self, employees: pd.DataFrame, clients: pd.DataFrame, abnormality_model=None
     ):
         # Define variables for employee self.assignments and client unassignment indicators
         self.assignments = {}
@@ -109,7 +110,7 @@ class Optimizer:
             # print(f"objective value: {self.model.objective_value()}")
             # print(f"objective: {self.model.objective_}")
             self.model += self.model.objective_ > min_objective_value
-        if self.model.solve(solver="ortools"):
+        if self.model.solve(solver="ortools", time_limit=solver_time_limit_seconds):
             logger.info("Optimal solution found!")
             print("Optimal solution found!")
             try:
