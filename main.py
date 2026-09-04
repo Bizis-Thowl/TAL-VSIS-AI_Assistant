@@ -115,7 +115,12 @@ def main():
             else:
                 relevant_date = today.strftime("%Y-%m-%d")
 
-        vertretungen = get_vertretungen(request_info, relevant_date)
+        try:
+            vertretungen = get_vertretungen(request_info, relevant_date)
+        except Exception as e:
+            logger.error(f"Error while getting vertretungen: {e}")
+            time.sleep(10)
+            continue
 
         relevant_date = datetime.strptime(relevant_date, "%Y-%m-%d")
 
@@ -192,7 +197,11 @@ def main():
         assigned_pairs_list = []
         recommendation_ids = []
         for _ in range(3):
-            objective_value = optimizer.solve_model(objective_value)
+            try:
+                objective_value = optimizer.solve_model(objective_value)
+            except Exception as e:
+                logger.error(f"Error while solving model: {e}")
+                continue
             if objective_value is None:
                 break
             objective_value = int(
@@ -223,12 +232,16 @@ def main():
                         )
                     learner_infos.append(learner_info)
 
-            recommendation = send_update(
-                request_info,
-                assigned_pairs,
-                recommendation_ids,
-                client_record_assignments,
-            )
+            try:
+                recommendation = send_update(
+                    request_info,
+                    assigned_pairs,
+                    recommendation_ids,
+                    client_record_assignments,
+                )
+            except Exception as e:
+                logger.error(f"Error while sending update: {e}")
+                continue
 
             recommendations.append(recommendation)
 
